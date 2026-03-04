@@ -1,0 +1,23 @@
+{
+  "name": "autonomous-software-agents",
+  "version": "1.0.0",
+  "description": "A project focused on the development and analysis of autonomous software agents, exploring their design, implementation, and applications in the Deliveroo.js domain, for the University of Trento.",
+  "homepage": "https://github.com/andreablushi/autonomous-software-agents#readme",
+  "bugs": {
+    "url": "https://github.com/andreablushi/autonomous-software-agents/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andreablushi/autonomous-software-agents.git"
+  },
+  "license": "ISC",
+  "author": "Andrea Blushi, Davide Donà",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
