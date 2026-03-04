@@ -1,0 +1,31 @@
+\documentclass[10pt]{beamer}
+
+% Input setup file with packages and custom commands
+\input{setup.tex}
+
+\begin{document}
+
+\title{Autonomous Software Agents: Deliveroo.js}
+\author[University of Trento]{Davide Donà \and Andrea Blushi}
+
+
+\institute[]{ University of Trento}
+\date[]{\MonthName\ \number\year}
+
+%The next statement creates the title page.
+\frame{\titlepage}
+\begin{frame}
+\frametitle{Contents}
+\tableofcontents
+\end{frame}
+%------------------------------------------------------------
+\input{chapters/Introduction.tex}
+
+
+\section*{References}  
+\begin{frame}
+\nocite{*}
+\bibliographystyle{ieeetr} 
+\small{\bibliography{references}}
+\end{frame}
+\end{document}
