@@ -6,17 +6,17 @@ A project focused on the development and analysis of autonomous software agents,
   <tr>
     <td align="center">
       <strong>
-        <a href="docs/report.pdf">View Full Report (PDF)</a>
+        <a href="docs/report/report.pdf">View Full Report (PDF)</a>
       </strong><br><br>
-      <a href="docs/report.pdf">
+      <a href="docs/report/report.pdf">
         <img src="docs/media/report-preview.png" width="200" alt="Report preview">
       </a>
     </td>
     <td align="center">
       <strong>
-        <a href="docs/presentation.pdf">View Full Presentation (PDF)</a>
+        <a href="docs/presentation/presentation.pdf">View Full Presentation (PDF)</a>
       </strong><br><br>
-      <a href="docs/presentation.pdf">
+      <a href="docs/presentation/presentation.pdf">
         <img src="docs/media/presentation-preview.png" width="350" alt="Presentation preview">
       </a>
     </td>
