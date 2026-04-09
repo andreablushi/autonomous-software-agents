@@ -8,7 +8,7 @@ async function main() {
     // Connect to the server and get the socket instance
     const socket = await connect();
     // Create an instance of the BDI Agent with the socket connection
-    new BDIAgent(socket);
+    new BDIAgent(socket, process.env.NODE_ENV === "development");
 }
 
 // Run the main function and catch any errors for logging

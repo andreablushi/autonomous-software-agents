@@ -5,9 +5,13 @@
  * This class represents a Belief-Desire-Intention (BDI) agent that connects to a Deliveroo.js server using Socket.IO.
 */
 export class BDIAgent {
-    // The constructor initializes the agent with a socket connection and sets up its beliefs, desires, and intentions.
-    constructor(socket) {
+    /**
+     * @param {object} socket - The socket connection to the Deliveroo.js server.
+     * @param {boolean} debug - Set to true to enable debug logging (dev mode).
+     */
+    constructor(socket, debug = false) {
         this.socket = socket;
+        this.debug = debug;
         this.beliefs = {};
         this.desires = {};
         this.intentions = {};
@@ -28,7 +32,7 @@ export class BDIAgent {
         });
         
         this.socket.onSensing(({ agents, parcels, crates }) => {
-            console.log("[SENSING] sensing event received");
+            if (this.debug) console.log("[SENSING] Agents:", agents, "Parcels:", parcels, "Crates:", crates);
             this.beliefs.agents = agents;
             this.beliefs.parcels = parcels;
             this.beliefs.crates = crates;
@@ -40,10 +44,10 @@ export class BDIAgent {
      * Deliberate method processes the current beliefs to form desires and intentions. 
     */
     deliberate() {
-        console.log("[DELIBERATE] Current beliefs:", this.beliefs);
+        if (this.debug) console.log("[DELIBERATE] Current beliefs:", this.beliefs);
         // Placeholder: always desire to move up
         this.desires = ["moveUp"];
-        console.log("[DELIBERATE] Desires:", this.desires);
+        if (this.debug) console.log("[DELIBERATE] Desires:", this.desires);
         this.intention();
     }
 
@@ -53,7 +57,7 @@ export class BDIAgent {
     intention() {
         // Placeholder: turn every desire directly into an intention
         this.intentions = [...this.desires];
-        console.log("[INTENTIONS] Intentions:", this.intentions);
+        if (this.debug) console.log("[INTENTIONS] Intentions:", this.intentions);
         // Execute the intentions immediately for demonstration purposes
         this.execute();
     }
@@ -64,7 +68,7 @@ export class BDIAgent {
     execute() {
         // Placeholder: execute each intention
         this.intentions.forEach(async (intention) => {
-            console.log("[EXECUTE] Executing intention:", intention);
+            if (this.debug) console.log("[EXECUTE] Executing intention:", intention);
             //const result = await this.socket.emitMove("down");
         });
     }

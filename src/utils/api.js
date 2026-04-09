@@ -6,9 +6,12 @@ import { DjsConnect } from "@unitn-asa/deliveroo-js-sdk";
  * @async
  * @returns 
  */
-export async function connect( ) {
-    // Load environment variables from .env file
-	const socket = await DjsConnect();
+export async function connect() {
+    // Connect to the Deliveroo server
+    const socket = await DjsConnect(
+        process.env.HOST,
+        process.env.TOKEN
+    );
     // Listen for connection events and log the status
 	socket.onConnect(() => {
 		console.log("Connected to server!");
