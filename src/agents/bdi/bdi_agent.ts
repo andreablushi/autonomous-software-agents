@@ -25,15 +25,15 @@ export class BDIAgent {
         this.intentions = [];
 
         // Initialize the agent info in the beliefs once the connection is established
-        this.socket.onceYou((info : IOAgent) => {
+        this.socket.once('you', (info : IOAgent) => {
             this.beliefs.initiateMe(info);
         });
         // Set game configuration in beliefs once received
-        this.socket.onConfig((config : IOConfig) => {
+        this.socket.on('config', (config : IOConfig) => {
             this.beliefs.setGameSettings(config);
         });
         // Set map information in beliefs once received
-        this.socket.onMap((width: number, height: number, tiles: IOTile[]) => {
+        this.socket.on('map', (width: number, height: number, tiles: IOTile[]) => {
             this.beliefs.setMap(width, height, tiles);
         });
         // Running it makes it move every time it receives a sensing event, it works like a while loop
@@ -45,12 +45,12 @@ export class BDIAgent {
      */
     perceive() {
         // Listen for updates about the agent's own status (score, penalty, position)
-        this.socket.onYou((me : IOAgent) => {
+        this.socket.on('you', (me : IOAgent) => {
             this.beliefs.updateMeStatus(me);
         });
 
         // Listen for sensing events
-        this.socket.onSensing((sensing : IOSensing) => {
+        this.socket.on('sensing', (sensing : IOSensing) => {
             // Update beliefs about other agents based on the sensing event data
             this.beliefs.updateOtherAgents(sensing.agents);
         });
