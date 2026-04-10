@@ -21,6 +21,14 @@ export class BDIAgent {
         this.socket.onceYou((info) => {
             this.beliefs.initiateMe(info);
         }); 
+        // Set game configuration in beliefs once received
+        this.socket.onConfig((config) => {
+            this.beliefs.setConfig(config);
+        });
+        // Set map information in beliefs once received
+        this.socket.onMap((map) => {
+            this.beliefs.setMap(map);
+        });
         // Running it makes it move every time it receives a sensing event, it works like a while loop
         this.perceive();
     }

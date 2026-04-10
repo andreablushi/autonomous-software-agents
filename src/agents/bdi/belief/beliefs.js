@@ -5,10 +5,22 @@ import { Agent } from "./models/agent.js";
  */
 export class Beliefs {
     constructor() {
+        this.config = null; // Configuration settings
+        this.map = null; // Map information
         this.me = null; // Agent's own state
         this.friends = new Map(); // Agents on the same team
         this.enemies = new Map(); // Agents on other teams
     }
+
+
+    setConfig(config) {
+        this.config = config;
+    }
+
+    setMap(map){
+        this.map = map;
+    }
+
 
     initiateMe(me_info) {
         this.me = new Agent(
