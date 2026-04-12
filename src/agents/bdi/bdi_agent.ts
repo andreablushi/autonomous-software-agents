@@ -50,6 +50,7 @@ export class BDIAgent {
         // Listen for updates about the agent's own status (score, penalty, position)
         this.socket.on('you', (me : IOAgent) => {
             this.beliefs.updateMeStatus(me);
+            if (this.debug) console.log("[PERCEIVE] Me status updated — pos: [", me.x, ", ", me.y, "]| score:", me.score, "]");
         });
 
         // Listen for sensing events
@@ -65,6 +66,11 @@ export class BDIAgent {
 
             // Prune expired memory entries (soft expiry)
             this.beliefs.evict();
+            if (this.debug) console.log(
+                "[PERCEIVE] Sensing update — agents:", sensing.agents.length,
+                "| parcels:", sensing.parcels.length,
+                "| crates:", sensing.crates.length
+            );
             //#TODO: After updating beliefs, deliberate to form desires and intentions
         });
     }
@@ -73,7 +79,13 @@ export class BDIAgent {
      * Deliberate method processes the current beliefs to form desires and intentions.
      */
     deliberate() {
-        if (this.debug) console.log("[DELIBERATE] Current beliefs:", this.beliefs);
+        if (this.debug) console.log(
+            "[DELIBERATE] Beliefs snapshot — me:", this.beliefs.me?.id ?? "unknown",
+            "| friends:", this.beliefs.friends.currentAll().length,
+            "| enemies:", this.beliefs.enemies.currentAll().length,
+            "| parcels:", this.beliefs.parcels.currentAll().length,
+            "| crates:", this.beliefs.crates.currentAll().length
+        );
         // Placeholder: always desire to move up
         this.desires = ["moveUp"];
         if (this.debug) console.log("[DELIBERATE] Desires:", this.desires);

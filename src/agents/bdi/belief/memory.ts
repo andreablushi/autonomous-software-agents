@@ -2,10 +2,12 @@ import { Observation } from "../../../models/memory.js";
 
 /**
  * Generic memory store with TTL-based soft expiry.
+ * Allows the agent to maintain a history of observations for each key, 
+ * while automatically evicting stale entries based on a specified time-to-live (TTL).
  */
 export class Memory<T> {
-    // Internal store mapping keys to arrays of timestamped entries (history).
-    private store = new Map<string, Observation<T>[]>();
+    // Internal mapping from keys to arrays of timestamped entries (history).
+    private memory_map = new Map<string, Observation<T>[]>();
 
     /** 
      * @param ttl - Time-to-live for entries in milliseconds.
@@ -13,14 +15,23 @@ export class Memory<T> {
     constructor(private ttl: number) {}
 
     /**
-     * Add a new observation for the given key.
+     * Add a new observation for the given key, along with the current timestamp.
+     * @param key 
+     * @param value 
+     * @returns void
      */
     update(key: string, value: T): void {
         // Avoid memoryzing intermediate positions
         const pos = (value as any)?.lastPosition;
         if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y))) return;
-        if (!this.store.has(key)) this.store.set(key, []);  // Initialize history array for new keys
-        this.store.get(key)!.push({ value, seenAt: Date.now() });
+
+        // Initialize history array for new keys
+        if (!this.memory_map.has(key)){ 
+            this.memory_map.set(key, []);  
+        }
+        
+        // Append the new observation with the current timestamp
+        this.memory_map.get(key)!.push({ value, seenAt: Date.now() });
     }
 
     /**
@@ -29,8 +40,10 @@ export class Memory<T> {
      * @returns The most recent value for the key, or undefined if no entries exist.
      */
     current(key: string): T | undefined {
-        const entries = this.store.get(key);
-            if (!entries?.length) return undefined;
+        // Get all the entries for the key
+        const entries = this.memory_map.get(key);
+        if (!entries?.length) return undefined;
+
         return entries[entries.length - 1].value;
     }
 
@@ -40,8 +53,9 @@ export class Memory<T> {
      * @returns True if the latest entry for the key is stale or if no entries exist, false otherwise.
      */
     isStale(key: string): boolean {
-        const entries = this.store.get(key);
+        const entries = this.memory_map.get(key);
         if (!entries?.length) return true;
+
         return Date.now() - entries[entries.length - 1].seenAt > this.ttl;
     }
 
@@ -52,7 +66,7 @@ export class Memory<T> {
      */
     history(key: string): Observation<T>[] {
         const now = Date.now();
-        return (this.store.get(key) ?? [])
+        return (this.memory_map.get(key) ?? [])
             .filter(e => now - e.seenAt <= this.ttl);
     }
 
@@ -68,7 +82,7 @@ export class Memory<T> {
         const now = Date.now();
         const start = upper !== undefined ? -upper : undefined;
         const end = lower !== undefined ? -lower : undefined;
-        return (this.store.get(key) ?? [])
+        return (this.memory_map.get(key) ?? [])
             .filter(e => now - e.seenAt <= this.ttl)
             .slice(start, end);
     }
@@ -78,7 +92,8 @@ export class Memory<T> {
      * @returns An array of the most recent values for all keys.
      */
     currentAll(): T[] {
-        return Array.from(this.store.values())
+        // For each key, get the most recent entry's value
+        return Array.from(this.memory_map.values())
             .map(entries => entries[entries.length - 1].value);
     }
 
@@ -88,9 +103,11 @@ export class Memory<T> {
     */
     evict(): void {
         const now = Date.now();
-        for (const [key, entries] of this.store) {
-            const fresh = entries.filter(e => now - e.seenAt <= this.ttl);
-            this.store.set(key, fresh.length > 0 ? fresh : [entries[entries.length - 1]]);
+        // Check each entry in the memory map and filter out stale observations
+        for (const [key, entries] of this.memory_map.entries()) {
+            const fresh = entries.filter(entry => now - entry.seenAt <= this.ttl);
+            // if no entries were fresh, keep the most recent one to avoid losing all information about this key
+            this.memory_map.set(key, fresh.length > 0 ? fresh : [entries[entries.length - 1]]);
         }
     }
 }

@@ -11,18 +11,20 @@ import { Memory } from "./memory.js";
  * It is updated based on the sensing events received from the BDI agent's perceive method.
  */
 export class Beliefs {
-    // Memory management 
-    private lastEvict = 0;
-    private readonly evictInterval = 5_000;
+    // Memory management - EvictInterval prevents the agent from evicting stale beliefs too frequently,
+    private lastEvict = 0;                      // Timestamp of the last eviction of stale beliefs
+    private readonly evictInterval = 5_000;     // Number of milliseconds between evictions of stale beliefs
+    
     // Static beliefs about the game configuration and map
-    settings: GameSettings | null = null;
-    map: GameMap | null = null;
+    settings: GameSettings | null = null;       // Game settings received from the server
+    map: GameMap | null = null;                 // Map information received from the server, including dimensions and tile layout
+    
     // Dynamic beliefs about the current state of the world
-    me: Agent | null = null;        
-    friends = new Memory<Agent>(5_000);
-    enemies = new Memory<Agent>(5_000);
-    parcels = new Memory<Parcels>(10_000);
-    crates  = new Memory<Crates>(30_000);
+    me: Agent | null = null;                     // The agent's own information
+    friends = new Memory<Agent>(5_000);          // Beliefs about friendly agents
+    enemies = new Memory<Agent>(5_000);          // Beliefs about enemy agents
+    parcels = new Memory<Parcels>(10_000);       // Beliefs about parcels
+    crates  = new Memory<Crates>(30_000);        // Beliefs about crates
 
     /**
      * Set the game configuration in the beliefs.
