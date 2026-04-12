@@ -26,17 +26,17 @@ export class BDIAgent {
 
         // Initialize the agent info in the beliefs once the connection is established
         this.socket.once('you', (info : IOAgent) => {
-            this.beliefs.setMe(info);
+            this.beliefs.agents.setMe(info);
         });
 
         // Set game configuration in beliefs once received
         this.socket.on('config', (config : IOConfig) => {
-            this.beliefs.setGameSettings(config);
+            this.beliefs.setSettings(config);
         });
 
         // Set map information in beliefs once received
         this.socket.on('map', (width: number, height: number, tiles: IOTile[]) => {
-            this.beliefs.setMap(width, height, tiles);
+            this.beliefs.map.setMap(width, height, tiles);
         });
 
         // Running it makes it move every time it receives a sensing event, it works like a while loop
@@ -49,20 +49,20 @@ export class BDIAgent {
     perceive() {
         // Listen for updates about the agent's own status (score, penalty, position)
         this.socket.on('you', (me : IOAgent) => {
-            this.beliefs.updateMeStatus(me);
+            this.beliefs.agents.updateMeStatus(me);
             if (this.debug) console.log("[PERCEIVE] Me status updated — pos: [", me.x, ", ", me.y, "]| score:", me.score, "]");
         });
 
         // Listen for sensing events
         this.socket.on('sensing', (sensing : IOSensing) => {
             // Update beliefs about other agents based on the sensing event data
-            this.beliefs.updateOtherAgents(sensing.agents);
+            this.beliefs.agents.updateOtherAgents(sensing.agents);
 
             // Update beliefs about parcels based on the sensing event data
-            this.beliefs.updateParcels(sensing.parcels);
+            this.beliefs.parcels.updateParcels(sensing.parcels);
 
             // Update beliefs about crates based on the sensing event data
-            this.beliefs.updateCrates(sensing.crates);
+            this.beliefs.map.updateCrates(sensing.crates);
 
             // Prune expired memory entries (soft expiry)
             this.beliefs.evict();
@@ -80,11 +80,11 @@ export class BDIAgent {
      */
     deliberate() {
         if (this.debug) console.log(
-            "[DELIBERATE] Beliefs snapshot — me:", this.beliefs.me?.id ?? "unknown",
-            "| friends:", this.beliefs.friends.currentAll().length,
-            "| enemies:", this.beliefs.enemies.currentAll().length,
-            "| parcels:", this.beliefs.parcels.currentAll().length,
-            "| crates:", this.beliefs.crates.currentAll().length
+            "[DELIBERATE] Beliefs snapshot — me:", this.beliefs.agents.me?.id ?? "unknown",
+            "| friends:", this.beliefs.agents.friends.currentAll().length,
+            "| enemies:", this.beliefs.agents.enemies.currentAll().length,
+            "| parcels:", this.beliefs.parcels.parcels.currentAll().length,
+            "| crates:", this.beliefs.map.crates.currentAll().length
         );
         // Placeholder: always desire to move up
         this.desires = ["moveUp"];

@@ -1,4 +1,4 @@
-import { Observation } from "../../../models/memory.js";
+import { Observation } from "../../../../models/memory.js";
 
 /**
  * Generic memory store with TTL-based soft expiry.
