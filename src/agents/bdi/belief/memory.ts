@@ -16,6 +16,9 @@ export class Memory<T> {
      * Add a new observation for the given key.
      */
     update(key: string, value: T): void {
+        // Avoid memoryzing intermediate positions
+        const pos = (value as any)?.lastPosition;
+        if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y))) return;
         if (!this.store.has(key)) this.store.set(key, []);  // Initialize history array for new keys
         this.store.get(key)!.push({ value, seenAt: Date.now() });
     }
