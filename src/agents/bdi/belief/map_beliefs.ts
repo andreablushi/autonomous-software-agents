@@ -10,8 +10,8 @@ import { Tracker } from "./utils/tracker.js";
  */
 export class MapBeliefs {
 
-    map: GameMap | null = null;             // Static map layout, set once at the start of the game
-    crates = new Tracker<Crate>();          // Latest-only store; eviction is handled by MapBeliefs.evict()
+    private map: GameMap | null = null;             // Static map layout, set once at the start of the game
+    private crates = new Tracker<Crate>();          // Latest-only store; eviction is handled by MapBeliefs.evict()
 
     /**
      * Initialize map beliefs from the given map info.

@@ -7,7 +7,7 @@ import { Observation } from "../../../../models/memory.js";
  */
 export class Memory<T> {
     // Internal mapping from keys to arrays of timestamped entries (history).
-    private memory_map = new Map<string, Observation<T>[]>();
+    private memoryMap = new Map<string, Observation<T>[]>();
 
     /** 
      * @param ttl - Time-to-live for entries in milliseconds.
@@ -26,12 +26,12 @@ export class Memory<T> {
         if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y))) return;
 
         // Initialize history array for new keys
-        if (!this.memory_map.has(key)){ 
-            this.memory_map.set(key, []);  
+        if (!this.memoryMap.has(key)){ 
+            this.memoryMap.set(key, []);  
         }
         
         // Append the new observation with the current timestamp
-        const entries = this.memory_map.get(key)!;
+        const entries = this.memoryMap.get(key)!;
         entries.push({ value, seenAt: Date.now() });
 
         // Keep only the latest observations to bound per-key history size.
@@ -47,7 +47,7 @@ export class Memory<T> {
      */
     getCurrent(key: string): T | undefined {
         // Get all the entries for the key
-        const entries = this.memory_map.get(key);
+        const entries = this.memoryMap.get(key);
         if (!entries?.length) return undefined;
 
         return entries[entries.length - 1].value;
@@ -59,7 +59,7 @@ export class Memory<T> {
      */
     getCurrentAll(): T[] {
         // For each key, get the most recent entry's value
-        return Array.from(this.memory_map.values())
+        return Array.from(this.memoryMap.values())
             .map(entries => entries[entries.length - 1].value);
     }
 
@@ -70,16 +70,8 @@ export class Memory<T> {
      */
     getHistory(key: string): Observation<T>[] {
         const now = Date.now();
-        return (this.memory_map.get(key) ?? [])
+        return (this.memoryMap.get(key) ?? [])
             .filter(e => now - e.seenAt <= this.ttl);
-    }
-
-    /**
-     * Get all keys currently stored in memory.
-     * @returns An array of all keys in the memory map.
-     */
-    getKeys(): string[] {
-        return Array.from(this.memory_map.keys());
     }
 
     /**
@@ -87,8 +79,8 @@ export class Memory<T> {
      * @param key 
      * @returns The timestamp of the last update for the key, or undefined if the key does not exist.
      */
-    getLastSeenAt(key: string): number | undefined {
-        const entries = this.memory_map.get(key);
+    getLastTimestamp(key: string): number | undefined {
+        const entries = this.memoryMap.get(key);
         if (!entries?.length) return undefined;
         return entries[entries.length - 1].seenAt;
     }
@@ -99,7 +91,7 @@ export class Memory<T> {
      * @returns void
      */
     delete(key: string): void {
-        this.memory_map.delete(key);
+        this.memoryMap.delete(key);
     }
 
     /**
@@ -111,12 +103,12 @@ export class Memory<T> {
     evict(): void {
         const now = Date.now();
         // Check each entry in the memory map and filter out stale observations
-        for (const [key, entries] of this.memory_map.entries()) {
+        for (const [key, entries] of this.memoryMap.entries()) {
             const fresh = entries.filter(entry => now - entry.seenAt <= this.ttl);
             if (fresh.length > 0) {
-                this.memory_map.set(key, fresh);
+                this.memoryMap.set(key, fresh);
             } else {
-                this.memory_map.delete(key);
+                this.memoryMap.delete(key);
             }
         }
     }

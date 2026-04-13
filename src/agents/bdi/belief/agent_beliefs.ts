@@ -9,14 +9,23 @@ import { Tracker } from "./utils/tracker.js";
  */
 export class AgentBeliefs {
 
-    me: Agent | null = null;                        // Current self-belief, updated directly from observations, without memory
-    friends = new Tracker<Agent>();                 // Tracker of friendly agents, keyed by ID, with TTL-based eviction
-    enemies = new Memory<Agent>(1_000, 10);             // Memory of enemy agents, keyed by ID, with TTL-based eviction
-    playerSettings: PlayerSettings | null = null;   // Player settings from config
+    private me: Agent | null = null;                        // Current self-belief, updated directly from observations, without memory
+    private friends = new Tracker<Agent>();                 // Tracker of friendly agents, keyed by ID, with TTL-based eviction
+    private enemies = new Memory<Agent>(1_000, 10);         // Memory of enemy agents, keyed by ID, with TTL-based eviction
+    private playerSettings: PlayerSettings | null = null;   // Player settings from config
 
     // Memory management - EvictInterval prevents the agent from evicting stale beliefs too frequently,
-    private lastEvict = 0;                      // Timestamp of the last eviction of stale beliefs
-    private readonly EVICT_INTERVAL = 1_000;     // Number of milliseconds between evictions of stale beliefs
+    private lastEvict = 0;                          // Timestamp of the last eviction of stale beliefs
+    private readonly EVICT_INTERVAL = 1_000;        // Number of milliseconds between evictions of stale beliefs
+
+    /**
+     * Update player settings belief with the latest config info.
+     * @param settings 
+     * @returns void
+     */
+    setSettings(settings: PlayerSettings): void {
+        this.playerSettings = settings;
+    }
 
     /**
      * Update self-belief with the latest info.
@@ -53,9 +62,16 @@ export class AgentBeliefs {
                 this.enemies.update(agent.id, data);
             }
         });
-        console.log(this.enemies.getCurrentAll().length)
         // Evict stale beliefs that haven't been updated recently to prevent memory bloat
         this.evict()
+    }
+
+    /**
+     * Get the current believed state of the agent itself.
+     * @returns The current self-belief, or null if not yet observed.
+     */
+    getCurrentMe(): Agent | null {
+        return this.me;
     }
 
     /**

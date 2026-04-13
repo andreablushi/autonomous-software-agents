@@ -8,11 +8,20 @@ import { ParcelSettings } from "../../../models/config.js";
  */
 export class ParcelBeliefs {
 
-    parcels = new Tracker<Parcel>();                // Latest-only store; eviction is handled by the decay logic via delete()
-    parcelSettings: ParcelSettings | null = null;   // Parcel settings from config
+    private parcels = new Tracker<Parcel>();                // Latest-only store; eviction is handled by the decay logic via delete()
+    private parcelSettings: ParcelSettings | null = null;   // Parcel settings from config
 
     private lastScoreUpdate = 0;                    // Timestamp of the last score update, used to trigger reward decay
     
+    /**
+     * Update parcel settings belief with the latest config info.
+     * @param settings 
+     * @return void
+     */
+    setSettings(settings: ParcelSettings): void {
+        this.parcelSettings = settings;
+    }
+
     /**
      * Update parcel beliefs with the latest observed parcels.
      * @param parcels Array of parcels from the server, converted to internal Parcels type and stored in memory.
@@ -32,34 +41,30 @@ export class ParcelBeliefs {
     }
 
     /**
-     * Remove all decayed parcels that haven't been sensed for a while, based on the reward decay logic.
-     * @param sensedParcelsIds 
-     * @param decayInterval 
-     * @param now 
+     * Decay rewards for parcels not in the current sensing window.
+     * Removes parcels whose reward has dropped to zero or below.
+     * @param sensedParcels Array of currently sensed parcels to exclude from decay
+     * @param decayInterval Time in milliseconds for each reward decay step
+     * @param now Current timestamp to calculate decay
      * @returns void
      */
-    private decayNonSensedParcels(sensedParcels: IOParcel[], decayInterval: number, now: number): void {
-        // Iterate over all currently believed parcels 
+    private applyRewardDecay(sensedParcels: IOParcel[], decayInterval: number, now: number): void {
+        // Create a set of currently sensed parcel IDs for quick lookup
+        const sensedIds = new Set(sensedParcels.map(p => p.id));
         for (const parcel of this.parcels.getCurrentAll()) {
-            // If the parcel is currently sensed skip
-            if (sensedParcels.some(p => p.id === parcel.id)) continue;
-            // If the parcel is not currently sensed, check how long it's been since it was last seen
-            const lastSeen = this.parcels.getLastSeenAt(parcel.id);
-            if (!parcel || lastSeen === undefined) continue;
+            // Skip parcels that are currently sensed
+            if (sensedIds.has(parcel.id)) continue;
+            // Get the last seen timestamp for the parcel to calculate decay
+            const lastSeen = this.parcels.getLastTimestamp(parcel.id);
+            if (lastSeen === undefined) continue;
             // Calculate how many decay intervals have passed since the parcel was last seen
-            const decayTicks = Math.floor((now - lastSeen) / decayInterval);
-            if (decayTicks <= 0) continue;
-            // Update the parcel's reward based on how long it's been since it was last seen
-            const updatedReward = parcel.reward - decayTicks;
-            if (updatedReward <= 0) {
-                this.parcels.delete(parcel.id);
-                continue;
-            }
+            const ticks = Math.floor((now - lastSeen) / decayInterval);
+            if (ticks <= 0) continue;
+            // Apply decay to the parcel's reward based on the number of ticks
+            const updatedReward = parcel.reward - ticks;
+            if (updatedReward <= 0) { this.parcels.delete(parcel.id); continue; }
             // Update the parcel belief with the decayed reward
-            this.parcels.update(parcel.id, {
-                ...parcel,
-                reward: updatedReward,
-            });
+            this.parcels.update(parcel.id, { ...parcel, reward: updatedReward });
         }
     }
         
@@ -80,7 +85,7 @@ export class ParcelBeliefs {
         this.lastScoreUpdate = now; 
         
         // Update beliefs for parcels that are not currently sensed
-        this.decayNonSensedParcels(sensedParcels, decayInterval, now);        
+        this.applyRewardDecay(sensedParcels, decayInterval, now);        
     }
 
     /**

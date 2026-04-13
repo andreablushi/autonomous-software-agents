@@ -51,7 +51,7 @@ export class Tracker<T> {
      * @param key 
      * @returns The timestamp of the last update for the key, or undefined if the key does not exist.
      */
-    getLastSeenAt(key: string): number | undefined {
+    getLastTimestamp(key: string): number | undefined {
         return this.store.get(key)?.seenAt;
     }
 

@@ -43,6 +43,17 @@ export type IOMap = {
     tiles: IOTile[];      // Array of all tiles composing the map
 }
 
+// Possible clock events that can be emitted by the 
+export type IOClockEvent = 'frame' | '1s' | '2s' | '5s' | '10s' | 'infinite';
+
+
+export type IONpc = {
+    moving_event: IOClockEvent,   // How often the NPC moves
+    type: string,                 // NPC behaviour type (e.g. 'random', 'collector')
+    count: number,                // Number of NPCs of this type
+    capacity: number,             // Parcel capacity (for collector NPCs)
+};
+
 export type IOConfig = {
     CLOCK: number,                  // Game tick duration in milliseconds
     PENALTY: number,                // Penalty applied for rule violations
@@ -53,10 +64,10 @@ export type IOConfig = {
         description: string,        // Human-readable description of the game scenario
         maxPlayers: number,         // Maximum number of players allowed in the session
         map: { width: number, height: number, tiles: IOTile[] },  // Map geometry and tile layout for the game
-        npcs: [IOAgent[]],          // List of non-player agent arrays present in the game
+        npcs: IONpc[],              // NPC configurations present in the game
         parcels: {
-            generation_event: string,   // Event name/interval controlling parcel spawning
-            decaying_event: string,     // Event name/interval controlling reward decay
+            generation_event: IOClockEvent,   // Event name/interval controlling parcel spawning
+            decaying_event: IOClockEvent,     // Event name/interval controlling reward decay
             max: number,                // Maximum number of parcels active at once
             reward_avg: number,         // Mean reward value for newly spawned parcels
             reward_variance: number     // Variance around the mean parcel reward

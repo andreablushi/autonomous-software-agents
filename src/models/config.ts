@@ -3,13 +3,6 @@
  * This file defines the structure of the configuration settings used in the system.
  */
 
-export type Config = {
-    clock: number;              // Time in seconds for each game tick
-    penalty: number;            // Penalty for violating game rules
-    agent_timeout: number;      // Timeout for agent actions
-    broadcast_log: boolean;     // Whether to broadcast log messages
-};
-
 export type GameSettings = {
     title: string;                         // Title of the game
     description: string;                   // Description of the game

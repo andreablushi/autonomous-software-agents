@@ -74,8 +74,8 @@ export class BDIAgent {
                 console.log("[PERCEIVE] Current beliefs state:");
                 console.log("  - Friends:", this.beliefs.agents.getCurrentFriends().length, "agents");
                 console.log("  - Enemies:", this.beliefs.agents.getCurrentEnemies().length, "agents");
-                console.log("  - Parcels:", this.beliefs.parcels.parcels.getCurrentAll().length, "parcels");
-                console.log("  - Crates:", this.beliefs.map.crates.getCurrentAll().length, "crates");
+                console.log("  - Parcels:", this.beliefs.parcels.getCurrentParcels().length, "parcels");
+                console.log("  - Crates:", this.beliefs.map.getCurrentCrates().length, "crates");
             }
             //#TODO: After updating beliefs, deliberate to form desires and intentions
         });
@@ -86,10 +86,10 @@ export class BDIAgent {
      */
     deliberate() {
         if (this.debug) console.log(
-            "[DELIBERATE] Beliefs snapshot — me:", this.beliefs.agents.me?.id ?? "unknown",
+            "[DELIBERATE] Beliefs snapshot — me:", this.beliefs.agents.getCurrentMe()?.id ?? "unknown",
             "| friends:", this.beliefs.agents.getCurrentFriends().length,
             "| enemies:", this.beliefs.agents.getCurrentEnemies().length,
-            "| parcels:", this.beliefs.parcels.parcels.getCurrentAll().length,
+            "| parcels:", this.beliefs.parcels.getCurrentParcels().length,
             "| crates:", this.beliefs.map.getCurrentCrates().length
         );
         // Placeholder: always desire to move up
