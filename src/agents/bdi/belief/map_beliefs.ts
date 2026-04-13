@@ -87,7 +87,9 @@ export class MapBeliefs {
         ];
         // Filter the adjacent positions to only include those that are valid crate spaces (i.e. not walls or occupied by other crates)
         return neighbours.filter(pos =>
-            this.map!.tiles.some(t => t.x === pos.x && t.y === pos.y && t.type === TILE_TYPE.CRATE_SPACE)
+            this.map!.tiles.some(t =>
+                t.type === TILE_TYPE.CRATE_SPACE &&
+                t.x === pos.x && t.y === pos.y)
         );
     }
 

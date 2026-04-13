@@ -2,22 +2,23 @@ import { Observation } from "../../../../models/memory.js";
 
 /**
  * Generic memory store with TTL-based soft expiry.
- * Allows the agent to maintain a history of observations for each key, 
+ * Allows the agent to maintain a history of observations for each id, 
  * while automatically evicting stale entries based on a specified time-to-live (TTL).
  */
 export class Memory<T> {
-    // Internal mapping from keys to arrays of timestamped entries (history).
+    // Internal mapping from ids to arrays of timestamped entries (history).
     private memoryMap = new Map<string, Observation<T>[]>();
 
     /** 
      * @param ttl - Time-to-live for entries in milliseconds.
+     * @param historySize - Maximum number of historical entries to keep per id.
      */
     constructor(private ttl: number, private historySize: number) {}
 
     /**
-     * Add a new observation for the given key, along with the current timestamp.
-     * @param key 
-     * @param value 
+     * Add a new observation for the given id, along with the current timestamp.
+     * @param key id of the object being tracked
+     * @param value the latest observed value for the object
      * @returns void
      */
     update(key: string, value: T): void {
@@ -25,7 +26,7 @@ export class Memory<T> {
         const pos = (value as any)?.lastPosition;
         if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y))) return;
 
-        // Initialize history array for new keys
+        // Initialize history array for new ids
         if (!this.memoryMap.has(key)){ 
             this.memoryMap.set(key, []);  
         }
@@ -34,16 +35,16 @@ export class Memory<T> {
         const entries = this.memoryMap.get(key)!;
         entries.push({ value, seenAt: Date.now() });
 
-        // Keep only the latest observations to bound per-key history size.
+        // Keep only the latest observations to bound per-id history size.
         if (entries.length > this.historySize) {
             entries.splice(0, entries.length - this.historySize);
         }
     }
 
     /**
-     * Get the latest known value for the given key, or undefined if no observations exist.
-     * @param key 
-     * @returns The most recent value for the key, or undefined if no entries exist.
+     * Get the latest known value for the given id, or undefined if no observations exist.
+     * @param key id of the object being tracked
+     * @returns The most recent value for the id, or undefined if no entries exist.
      */
     getCurrent(key: string): T | undefined {
         // Get all the entries for the key
@@ -65,7 +66,7 @@ export class Memory<T> {
 
     /**
      * Get all observations for the given key within the TTL window.
-     * @param key 
+     * @param key id of the object being tracked
      * @returns An array of values for the key within the TTL window.
      */
     getHistory(key: string): Observation<T>[] {
@@ -76,7 +77,7 @@ export class Memory<T> {
 
     /**
      * Get the timestamp of when the given key was last updated, or undefined if the key does not exist.
-     * @param key 
+     * @param key id of the object being tracked
      * @returns The timestamp of the last update for the key, or undefined if the key does not exist.
      */
     getLastTimestamp(key: string): number | undefined {
@@ -87,7 +88,7 @@ export class Memory<T> {
 
     /**
      * Remove all observations for a key from memory.
-     * @param key
+     * @param key id of the object being tracked
      * @returns void
      */
     delete(key: string): void {
@@ -104,10 +105,12 @@ export class Memory<T> {
         const now = Date.now();
         // Check each entry in the memory map and filter out stale observations
         for (const [key, entries] of this.memoryMap.entries()) {
+            // Keep only the entries that are within the TTL window
             const fresh = entries.filter(entry => now - entry.seenAt <= this.ttl);
             if (fresh.length > 0) {
                 this.memoryMap.set(key, fresh);
-            } else {
+            }
+            else {
                 this.memoryMap.delete(key);
             }
         }

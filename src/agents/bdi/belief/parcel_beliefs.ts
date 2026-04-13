@@ -11,7 +11,7 @@ export class ParcelBeliefs {
     private parcels = new Tracker<Parcel>();                // Latest-only store; eviction is handled by the decay logic via delete()
     private parcelSettings: ParcelSettings | null = null;   // Parcel settings from config
 
-    private lastScoreUpdate = 0;                    // Timestamp of the last score update, used to trigger reward decay
+    private lastScoreUpdate = 0;                            // Timestamp of the last score update, used to trigger reward decay
     
     /**
      * Update parcel settings belief with the latest config info.
@@ -51,15 +51,19 @@ export class ParcelBeliefs {
     private applyRewardDecay(sensedParcels: IOParcel[], decayInterval: number, now: number): void {
         // Create a set of currently sensed parcel IDs for quick lookup
         const sensedIds = new Set(sensedParcels.map(p => p.id));
+        
         for (const parcel of this.parcels.getCurrentAll()) {
             // Skip parcels that are currently sensed
             if (sensedIds.has(parcel.id)) continue;
+            
             // Get the last seen timestamp for the parcel to calculate decay
             const lastSeen = this.parcels.getLastTimestamp(parcel.id);
             if (lastSeen === undefined) continue;
+            
             // Calculate how many decay intervals have passed since the parcel was last seen
             const ticks = Math.floor((now - lastSeen) / decayInterval);
             if (ticks <= 0) continue;
+            
             // Apply decay to the parcel's reward based on the number of ticks
             const updatedReward = parcel.reward - ticks;
             if (updatedReward <= 0) { this.parcels.delete(parcel.id); continue; }

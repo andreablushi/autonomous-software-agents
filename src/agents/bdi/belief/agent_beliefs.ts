@@ -29,7 +29,7 @@ export class AgentBeliefs {
 
     /**
      * Update self-belief with the latest info.
-     * @param info Latest info about the agent from the server.
+     * @param sensedMe Latest info about the agent from the server.
      */
     updateMe(sensedMe: IOAgent): void {
         this.me = {
@@ -44,7 +44,7 @@ export class AgentBeliefs {
 
     /**
      * Update beliefs about other agents based on the latest observations.
-     * @param agents List of all observed agents from the latest observation, used to update beliefs about friends and enemies.
+     * @param sensedAgents List of all observed agents from the latest observation, used to update beliefs about friends and enemies.
      */
     updateOtherAgents(sensedAgents: IOAgent[]): void {
         sensedAgents.forEach(agent => {                           // Create a new Agent belief from the observed IOAgent data
@@ -62,7 +62,6 @@ export class AgentBeliefs {
                 this.enemies.update(agent.id, data);
             }
         });
-        // Evict stale beliefs that haven't been updated recently to prevent memory bloat
         this.evict()
     }
 
@@ -91,8 +90,7 @@ export class AgentBeliefs {
     }
 
     /**
-     * Delete the belief entry for the given agent ID from both friends and enemies trackers.
-     * @param agentId The ID of the agent to delete from beliefs.
+     * Evict stale beliefs that haven't been updated recently to prevent memory bloat.
      */
     private evict(): void {
         const now = Date.now();
