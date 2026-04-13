@@ -34,11 +34,6 @@ export class BDIAgent {
             this.beliefs.setSettings(config);
         });
 
-        // Set map information in beliefs once received
-        this.socket.on('map', (width: number, height: number, tiles: IOTile[]) => {
-            this.beliefs.map.setMap(width, height, tiles);
-        });
-
         // Running it makes it move every time it receives a sensing event, it works like a while loop
         this.perceive();
     }
@@ -51,6 +46,11 @@ export class BDIAgent {
         this.socket.on('you', (me : IOAgent) => {
             this.beliefs.agents.updateMe(me);
             if (this.debug) console.log("[PERCEIVE] Me status updated — pos: [", me.x, ", ", me.y, "]| score:", me.score, "]");
+        });
+
+        // Set map information in beliefs once received
+        this.socket.on('map', (width: number, height: number, tiles: IOTile[]) => {
+            this.beliefs.map.updateMap(width, height, tiles);
         });
 
         // Listen for sensing events
