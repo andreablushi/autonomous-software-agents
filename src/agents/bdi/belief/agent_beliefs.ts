@@ -11,12 +11,12 @@ export class AgentBeliefs {
 
     me: Agent | null = null;                        // Current self-belief, updated directly from observations, without memory
     friends = new Tracker<Agent>();                 // Tracker of friendly agents, keyed by ID, with TTL-based eviction
-    enemies = new Memory<Agent>(5_000);             // Memory of enemy agents, keyed by ID, with TTL-based eviction
+    enemies = new Memory<Agent>(1_000, 10);             // Memory of enemy agents, keyed by ID, with TTL-based eviction
     playerSettings: PlayerSettings | null = null;   // Player settings from config
 
     // Memory management - EvictInterval prevents the agent from evicting stale beliefs too frequently,
     private lastEvict = 0;                      // Timestamp of the last eviction of stale beliefs
-    private readonly EVICT_INTERVAL = 5_000;     // Number of milliseconds between evictions of stale beliefs
+    private readonly EVICT_INTERVAL = 1_000;     // Number of milliseconds between evictions of stale beliefs
 
     /**
      * Update self-belief with the latest info.
@@ -53,6 +53,7 @@ export class AgentBeliefs {
                 this.enemies.update(agent.id, data);
             }
         });
+        console.log(this.enemies.getCurrentAll().length)
         // Evict stale beliefs that haven't been updated recently to prevent memory bloat
         this.evict()
     }

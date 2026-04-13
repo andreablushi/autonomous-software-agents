@@ -12,7 +12,7 @@ export class Memory<T> {
     /** 
      * @param ttl - Time-to-live for entries in milliseconds.
      */
-    constructor(private ttl: number) {}
+    constructor(private ttl: number, private historySize: number) {}
 
     /**
      * Add a new observation for the given key, along with the current timestamp.
@@ -31,7 +31,13 @@ export class Memory<T> {
         }
         
         // Append the new observation with the current timestamp
-        this.memory_map.get(key)!.push({ value, seenAt: Date.now() });
+        const entries = this.memory_map.get(key)!;
+        entries.push({ value, seenAt: Date.now() });
+
+        // Keep only the latest observations to bound per-key history size.
+        if (entries.length > this.historySize) {
+            entries.splice(0, entries.length - this.historySize);
+        }
     }
 
     /**
@@ -97,7 +103,8 @@ export class Memory<T> {
     }
 
     /**
-     * Evict entries that are older than the TTL, but keep at least the most recent entry for each key.
+     * Evict entries that are older than the TTL.
+     * If all entries for a key are stale, remove the key entirely.
      * This method should be called periodically to prevent unbounded memory growth.
      * @returns void
     */
@@ -106,8 +113,11 @@ export class Memory<T> {
         // Check each entry in the memory map and filter out stale observations
         for (const [key, entries] of this.memory_map.entries()) {
             const fresh = entries.filter(entry => now - entry.seenAt <= this.ttl);
-            // if no entries were fresh, keep the most recent one to avoid losing all information about this key
-            this.memory_map.set(key, fresh.length > 0 ? fresh : [entries[entries.length - 1]]);
+            if (fresh.length > 0) {
+                this.memory_map.set(key, fresh);
+            } else {
+                this.memory_map.delete(key);
+            }
         }
     }
 }
