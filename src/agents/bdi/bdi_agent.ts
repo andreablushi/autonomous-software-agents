@@ -80,7 +80,6 @@ export class BDIAgent {
                 console.log("  - Parcels:", this.beliefs.parcels.parcels.currentAll().length, "parcels");
                 console.log("  - Crates:", this.beliefs.map.crates.currentAll().length, "crates");
             }
-
             //#TODO: After updating beliefs, deliberate to form desires and intentions
         });
     }

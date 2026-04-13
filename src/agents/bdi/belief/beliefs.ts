@@ -7,6 +7,31 @@ import { ParcelBeliefs } from "./parcel_beliefs.js";
 /**
  * Main belief system for the BDI agent, containing sub-systems for different aspects of the environment.
  */
+
+function parseTimeInterval(interval: string): number {
+    const normalized = interval.trim().toLowerCase();
+
+    if (normalized === "infinite" || normalized === "infinity" || normalized === "never") {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    const match = normalized.match(/^(\d+)(ms|s|m|h)?$/);
+    if (!match) {
+        throw new Error(`Invalid time interval format: ${interval}`);
+    }
+
+    const value = Number(match[1]);
+    const unit = match[2] ?? "ms";
+
+    switch (unit) {
+        case "ms": return value;
+        case "s": return value * 1_000;
+        case "m": return value * 60_000;
+        case "h": return value * 3_600_000;
+        default: throw new Error(`Unsupported time unit in interval: ${interval}`);
+    }
+}
+
 export class Beliefs {
     // Belief sub-systems
     readonly agents  = new AgentBeliefs();   // Tracks me, friends, and enemies
@@ -18,7 +43,7 @@ export class Beliefs {
 
     // Memory management - EvictInterval prevents the agent from evicting stale beliefs too frequently,
     private lastEvict = 0;                      // Timestamp of the last eviction of stale beliefs
-    private readonly evictInterval = 5_000;     // Number of milliseconds between evictions of stale beliefs
+    private readonly EVICT_INTERVAL = 5_000;     // Number of milliseconds between evictions of stale beliefs
 
     /**
      * Set game configuration and distribute relevant slices to each sub-system.
@@ -35,8 +60,8 @@ export class Beliefs {
                 parcel_capacity: config.GAME.player.capacity,
             },
             parcel_setting: {
-                parcel_spawn_interval: config.GAME.parcels.generation_event,
-                reward_decay_interval: config.GAME.parcels.decaying_event,
+                parcel_spawn_interval: parseTimeInterval(config.GAME.parcels.generation_event),
+                reward_decay_interval: parseTimeInterval(config.GAME.parcels.decaying_event),
                 max_concurrent_parcels: config.GAME.parcels.max,
                 reward_avg: config.GAME.parcels.reward_avg,
                 reward_variance: config.GAME.parcels.reward_variance,
@@ -44,6 +69,7 @@ export class Beliefs {
         };
         // Distribute relevant config slices to sub-systems
         this.agents.playerSettings = this.settings.player_setting;
+        this.parcels.parcelSettings = this.settings.parcel_setting;
     }
 
     /**
@@ -52,7 +78,7 @@ export class Beliefs {
      */
     evict(): void {
         const now = Date.now();
-        if (now - this.lastEvict < this.evictInterval) return;
+        if (now - this.lastEvict < this.EVICT_INTERVAL) return;
         this.lastEvict = now;
         this.agents.friends.evict();
         this.agents.enemies.evict();

@@ -71,6 +71,34 @@ export class Memory<T> {
     }
 
     /**
+     * Get all keys currently stored in memory.
+     * @returns An array of all keys in the memory map.
+     */
+    getKeys(): string[] {
+        return Array.from(this.memory_map.keys());
+    }
+
+    /**
+     * Get the timestamp of the latest observation for the given key.
+     * @param key
+     * @returns Epoch milliseconds when the key was last seen, or undefined if absent.
+     */
+    lastSeenAt(key: string): number | undefined {
+        const entries = this.memory_map.get(key);
+        if (!entries?.length) return undefined;
+
+        return entries[entries.length - 1].seenAt;
+    }
+
+    /**
+     * Remove all observations for a key from memory.
+     * @param key
+     */
+    delete(key: string): void {
+        this.memory_map.delete(key);
+    }
+
+    /**
      * Get the latest known value for every key, including stale ones (list of seen objects).
      * @returns An array of the most recent values for all keys.
      */
