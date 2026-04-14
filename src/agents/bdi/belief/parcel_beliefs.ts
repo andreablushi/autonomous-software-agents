@@ -12,6 +12,7 @@ export class ParcelBeliefs {
     private parcelSettings: ParcelSettings | null = null;   // Parcel settings from config
 
     private lastScoreUpdate = 0;                            // Timestamp of the last score update, used to trigger reward decay
+    private lastDecayApplied = new Map<string, number>();   // Per-parcel decay clock: parcelId → timestamp decay last advanced to
     
     /**
      * Update parcel settings belief with the latest config info.
@@ -37,6 +38,8 @@ export class ParcelBeliefs {
                 carriedBy: parcel.carriedBy || null,
                 reward: parcel.reward,
             });
+            // Reset the independent decay clock so decay restarts from this fresh observation
+            this.lastDecayApplied.delete(parcel.id);
         });
     }
 
@@ -56,19 +59,26 @@ export class ParcelBeliefs {
             // Skip parcels that are currently sensed
             if (sensedIds.has(parcel.id)) continue;
             
-            // Get the last seen timestamp for the parcel to calculate decay
-            const lastSeen = this.parcels.getLastTimestamp(parcel.id);
-            if (lastSeen === undefined) continue;
-            
-            // Calculate how many decay intervals have passed since the parcel was last seen
-            const ticks = Math.floor((now - lastSeen) / decayInterval);
+            // Use the independent decay clock; fall back to seenAt on the first decay pass
+            const lastDecay = this.lastDecayApplied.get(parcel.id)
+                ?? this.parcels.getLastTimestamp(parcel.id);
+            if (lastDecay === undefined) continue;
+
+            // Calculate how many decay intervals have passed since decay was last applied
+            const ticks = Math.floor((now - lastDecay) / decayInterval);
             if (ticks <= 0) continue;
-            
+
             // Apply decay to the parcel's reward based on the number of ticks
             const updatedReward = parcel.reward - ticks;
-            if (updatedReward <= 0) { this.parcels.delete(parcel.id); continue; }
-            // Update the parcel belief with the decayed reward
-            this.parcels.update(parcel.id, { ...parcel, reward: updatedReward });
+            if (updatedReward <= 0) {
+                this.parcels.delete(parcel.id);
+                this.lastDecayApplied.delete(parcel.id);
+                continue;
+            }
+            // Update the reward without touching seenAt (preserves actual observation time)
+            this.parcels.updateValue(parcel.id, { ...parcel, reward: updatedReward });
+            // Advance the decay clock by exactly the intervals processed
+            this.lastDecayApplied.set(parcel.id, lastDecay + ticks * decayInterval);
         }
     }
         
@@ -89,7 +99,7 @@ export class ParcelBeliefs {
         this.lastScoreUpdate = now; 
         
         // Update beliefs for parcels that are not currently sensed
-        this.applyRewardDecay(sensedParcels, decayInterval, now);        
+        this.applyRewardDecay(sensedParcels, decayInterval, now);
     }
 
     /**

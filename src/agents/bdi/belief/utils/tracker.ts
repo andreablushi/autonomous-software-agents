@@ -22,6 +22,20 @@ export class Tracker<T> {
     }
 
     /**
+     * Update the value for a given id without changing the existing timestamp.
+     * @param key id of the object being tracked
+     * @param value the new value to store, preserving the existing seenAt
+     * @returns void
+     */
+    updateValue(key: string, value: T): void {
+        const existing = this.store.get(key);
+        if (!existing) return;
+        const pos = (value as any)?.lastPosition;
+        if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y))) return;
+        this.store.set(key, { value, seenAt: existing.seenAt });
+    }
+
+    /**
      * Get the current value for a given id, or undefined if the key does not exist.
      * @param key id of the object being tracked
      * @returns The current value for the key, or undefined if the key does not exist.
