@@ -1,8 +1,11 @@
 import type { Agent } from "../../../models/agent.js";
 import type { PlayerSettings } from "../../../models/config.js";
 import type { IOAgent } from "../../../models/djs.js";
+import { Direction, DirectionPrediction } from "../../../models/position.js";
 import { Memory } from "./utils/memory.js";
 import { Tracker } from "./utils/tracker.js";
+
+
 
 /**
  * Beliefs about the agent itself and other observed agents.
@@ -87,6 +90,70 @@ export class AgentBeliefs {
      */
     getCurrentEnemies(): Agent[] {
         return this.enemies.getCurrentAll();
+    }
+
+    /**
+     * Predict the direction an enemy is moving based on its position history.
+     * @param id Enemy agent ID
+     * @returns Direction prediction with confidence score, or null if insufficient history
+     */
+    //#TODO: Right now is basic majority vote
+    predictEnemyDirection(id: string): DirectionPrediction | null {
+        // Get the history of observed positions for the specified enemy agent
+        const history = this.enemies.getHistory(id);
+        if (history.length < 2) return null;
+
+        const positions = history.map(o => o.value.lastPosition);
+        // Analyze consecutive position pairs to vote on movement direction, while ignoring ambiguous diagonal movements
+        const votes = new Map<Direction, number>();
+        // Track the last valid direction to break ties in case of equal votes
+        let lastValidDir: Direction = 'stationary';
+        // Count of valid position pairs that contribute to the direction prediction, used for confidence calculation
+        let totalValidPairs = 0;
+
+        // Iterate through consecutive position pairs to determine movement direction
+        for (let i = 0; i < positions.length - 1; i++) {
+            const a = positions[i];
+            const b = positions[i + 1];
+            if (a === null || b === null) continue;
+
+            // Calculate the difference in x and y coordinates to determine movement direction
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            if (dx !== 0 && dy !== 0) continue; // diagonal ambiguous, skip
+
+            // Only consider valid movements in cardinal directions or stationary, and ignore any pairs that suggest diagonal movement which cannot be clearly categorized
+            totalValidPairs++;
+
+            // Determine the movement direction based on the change in coordinates
+            let dir: Direction;
+            if (dx === 0 && dy === 0)    dir = 'stationary';
+            else if (dy < 0)             dir = 'down';
+            else if (dy > 0)             dir = 'up';
+            else if (dx < 0)             dir = 'left';
+            else                         dir = 'right';
+
+            // Vote for the determined direction based on this position pair
+            votes.set(dir, (votes.get(dir) ?? 0) + 1);
+            lastValidDir = dir;
+        }
+
+        // If no valid position pairs were found, we cannot make a prediction
+        if (totalValidPairs === 0) return null;
+
+        let winner: Direction = 'stationary';
+        let maxVotes = 0;
+        // Determine the direction with the most votes, and calculate confidence as the proportion of votes for that direction out of total valid pairs
+        for (const [dir, count] of votes) {
+            if (count > maxVotes) { winner = dir; maxVotes = count; }
+        }
+
+        // If there's a tie in votes, use the last valid direction as a tiebreaker, since it reflects the most recent observed movement trend
+        const tied = [...votes.entries()].filter(([, c]) => c === maxVotes);
+        if (tied.length > 1) winner = lastValidDir;
+
+        // Return the predicted direction along with a confidence score, which is the ratio of votes for the winning direction to the total number of valid position pairs analyzed
+        return { direction: winner, confidence: maxVotes / totalValidPairs };
     }
 
     /**
