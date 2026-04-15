@@ -56,22 +56,34 @@ export class MapBeliefs {
         return this.map?.tiles.filter(t => t.type === TILE_TYPE.SPAWN_POINT) ?? [];
     }
 
+    /**
+     * Get the nearest spawn tile to the agent's last known position.
+     * @param agent The agent for which to find the nearest spawn tile.
+     * @returns The nearest spawn tile, or null if no free spawn tiles are available.
+     */
+    getNearestSpawnTile(agent : Agent): Tile {
+        // Get all spawn tiles (i.e. those not currently occupied by crates)
+        const spawn = this.getSpawnTiles();
+        // Find the nearest spawn tile to the agent's last known position
+        const agentPos = agent.lastPosition;
+        // If we don't know the agent's position, just return the first spawn tile
+        if (!agentPos) return spawn[0];   
+        
+        // Compute the Manhattan distance from the agent's position 
+        const nearest = spawn.reduce((nearest, spawn) => {
+            const d = Math.abs(spawn.x - agentPos.x) + Math.abs(spawn.y - agentPos.y);
+            const nd = Math.abs(nearest.x - agentPos.x) + Math.abs(nearest.y - agentPos.y);
+            return d < nd ? spawn : nearest;
+        }, spawn[0]);   // Start with the first spawn tile as the nearest
+        return nearest;
+    }
+
     /** 
      * All parcel delivery tiles.
      * @return An array of delivery tiles
      */
     getDeliveryTiles(): Tile[] {
         return this.map?.tiles.filter(t => t.type === TILE_TYPE.DELIVERY_POINT) ?? [];
-    }
-
-    /**
-     * All spawn tiles currently free of agents, based on the latest beliefs about agent positions.
-     * @returns An array of spawn tiles that are currently free of agents.
-     */
-    getFreeSpawnTiles(agents: Agent[]): Tile[] {
-        const spawns = this.getSpawnTiles();
-        // Get spawn tiles that are currently free of agents based on their last known positions
-        return spawns.filter(s => !agents.some(a => a.lastPosition && a.lastPosition.x === s.x && a.lastPosition.y === s.y));
     }
 
     /**

@@ -122,6 +122,15 @@ export class ParcelBeliefs {
         return this.parcels.getCurrentAll().filter(p => p.carriedBy === null);
     }
 
+    /**
+     * Get all parcels currently believed to be carried by a specific agent.
+     * @param agentId 
+     * @returns An array of parcels currently believed to be carried by the specified agent.
+     */
+    getCarriedByAgent(agentId: string): Parcel[] {
+        return this.parcels.getCurrentAll().filter(p => p.carriedBy === agentId);
+    }
+
     /** 
      * The available parcel with the highest reward, or null if no parcels are available.
      * @return The available parcel with the highest reward, or null if no parcels are available.

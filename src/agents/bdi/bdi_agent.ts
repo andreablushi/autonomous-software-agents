@@ -1,5 +1,7 @@
 import { IOConfig, IOTile, IOAgent, IOSensing } from "../../models/djs.js";
 import { Beliefs } from "./belief/beliefs.js";
+import { getDesires } from "./desire/desires.js";
+import type { DesireType } from "../../models/desires.js";
 
 /**
  * BDI Agent Implementation
@@ -10,8 +12,7 @@ export class BDIAgent {
     private socket: any;
     private debug: boolean;
     private beliefs: Beliefs;
-    private desires: string[];
-    private intentions: string[];
+    private intentions: DesireType[];
 
     /**
      * @param socket - The socket connection to the Deliveroo.js server.
@@ -21,7 +22,6 @@ export class BDIAgent {
         this.socket = socket;
         this.debug = debug;
         this.beliefs = new Beliefs();
-        this.desires = [];
         this.intentions = [];
 
         // Initialize the agent info in the beliefs once the connection is established
@@ -78,7 +78,7 @@ export class BDIAgent {
                 console.log("  - Parcels:", this.beliefs.parcels.getCurrentParcels().length, "parcels");
                 console.log("  - Crates:", this.beliefs.map.getCurrentCrates().length, "crates");
             }
-            //#TODO: After updating beliefs, deliberate to form desires and intentions
+            this.deliberate();
         });
     }
 
@@ -86,17 +86,9 @@ export class BDIAgent {
      * Deliberate method processes the current beliefs to form desires and intentions.
      */
     deliberate() {
-        if (this.debug) console.log(
-            "[DELIBERATE] Beliefs snapshot — me:", this.beliefs.agents.getCurrentMe()?.id ?? "unknown",
-            "| friends:", this.beliefs.agents.getCurrentFriends().length,
-            "| enemies:", this.beliefs.agents.getCurrentEnemies().length,
-            "| parcels:", this.beliefs.parcels.getCurrentParcels().length,
-            "| crates:", this.beliefs.map.getCurrentCrates().length
-        );
-        // Placeholder: always desire to move up
-        this.desires = ["moveUp"];
-        if (this.debug) console.log("[DELIBERATE] Desires:", this.desires);
-        this.intention();
+        // Generate and filter desires based on the current beliefs
+        if (this.debug) console.log("[DELIBERATE] Desires:", getDesires(this.beliefs));
+        //this.intention();
     }
 
     /**
@@ -104,7 +96,7 @@ export class BDIAgent {
      */
     intention() {
         // Placeholder: turn every desire directly into an intention
-        this.intentions = [...this.desires];
+        this.intentions = [];
         if (this.debug) console.log("[INTENTIONS] Intentions:", this.intentions);
         // Execute the intentions immediately for demonstration purposes
         this.execute();
