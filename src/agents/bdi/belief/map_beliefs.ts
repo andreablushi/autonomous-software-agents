@@ -81,29 +81,37 @@ export class MapBeliefs {
      * @param agent The agent for which to find the nearest spawn tile.
      * @returns The nearest spawn tile, or null if no free spawn tiles are available.
      */
-    getNearestSpawnTile(agent : Agent): Tile {
-        // Get all spawn tiles (i.e. those not currently occupied by crates)
-        const spawn = this.getSpawnTiles();
-        // Find the nearest spawn tile to the agent's last known position
-        const agentPos = agent.lastPosition;
-        // If we don't know the agent's position, just return the first spawn tile
-        if (!agentPos) return spawn[0];   
-        
-        // Compute the Manhattan distance from the agent's position 
-        const nearest = spawn.reduce((nearest, spawn) => {
-            const d = manhattanDistance(spawn, agentPos);
-            const nd = manhattanDistance(nearest, agentPos);
-            return d < nd ? spawn : nearest;
-        }, spawn[0]);   // Start with the first spawn tile as the nearest
-        return nearest;
+    getNearestSpawnTile(agent: Agent): Tile {
+        return this.getNearestTile(this.spawnTiles, agent);
     }
 
-    /** 
+    /**
      * All parcel delivery tiles.
      * @return An array of delivery tiles
      */
     getDeliveryTiles(): Tile[] {
         return this.deliveryTiles;
+    }
+
+    /**
+     * Get the nearest delivery tile to the agent's last known position.
+     * @param agent The agent for which to find the nearest delivery tile.
+     * @returns The nearest delivery tile.
+     */
+    getNearestDeliveryTile(agent: Agent): Tile {
+        return this.getNearestTile(this.deliveryTiles, agent);
+    }
+
+    /**
+     * Return the tile in `tiles` closest to the agent's last known position.
+     * Falls back to the first tile if the agent position is unknown.
+     */
+    private getNearestTile(tiles: Tile[], agent: Agent): Tile {
+        const agentPos = agent.lastPosition;
+        if (!agentPos) return tiles[0];
+        return tiles.reduce((nearest, tile) => {
+            return manhattanDistance(tile, agentPos) < manhattanDistance(nearest, agentPos) ? tile : nearest;
+        }, tiles[0]);
     }
 
     /**
