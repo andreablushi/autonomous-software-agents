@@ -6,10 +6,12 @@ import type { DesireType } from "../../../models/desires.js";
  * @returns A filtered array of DesireType with duplicates removed based on the desire type.
  */
 export function filterDesires(desires: DesireType[]): DesireType[] {
+    //#TODO: update the current filter. We think that here the selectBestDesire function should 
+    // be implemented instead
     const seen = new Set<string>();
-    return desires.filter(d => {
-        if (seen.has(d.type)) return false;
-        seen.add(d.type);
+    return desires.filter(desire => {
+        if (seen.has(desire.type)) return false;
+        seen.add(desire.type);
         return true;
     });
 }

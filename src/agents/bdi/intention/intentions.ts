@@ -2,8 +2,15 @@ import { aStar } from "../navigation/a_star.js";
 import type { Beliefs } from "../belief/beliefs.js";
 import type { DesireType } from "../../../models/desires.js";
 import type { Intention } from "../../../models/intentions.js";
+import type { Position } from "../../../models/position.js";
 
-function posToDirection(from: { x: number; y: number }, to: { x: number; y: number }): string {
+/**
+ * Given the current position and a target position, computes the direction of next step
+ * @param from - The current position of the agent
+ * @param to - The target position
+ * @returns The direction to move from the current position to the target position.
+ */
+function posToDirection(from: Position, to: Position): string {
     if (to.x > from.x) return 'right';
     if (to.x < from.x) return 'left';
     if (to.y > from.y) return 'up';
@@ -17,6 +24,7 @@ function posToDirection(from: { x: number; y: number }, to: { x: number; y: numb
 export class Intentions {
     private currentIntention: Intention | null = null;
     private desires: DesireType[] = [];
+    private pendingPickup = false;
 
     /**
      * Called each deliberation cycle.
@@ -108,6 +116,10 @@ export class Intentions {
      * @returns 
      */
     private selectBestDesire(desires: DesireType[]): DesireType {
+        //#TODO: move the selection mechanism to the desire filter, so that we already have a filtered and sorted list of desires here in the intention manager, 
+        // and we just take the first one
+
+
         // For simplicity, we take the first desire of the array
         //#TODO: implement a better selection mechanism based on the type of desire and distance
         return desires[0];
@@ -119,6 +131,12 @@ export class Intentions {
       * @returns The next direction to move ('up', 'down', 'left', 'right') or null if no intention or path is available.
      */
     getNextStep(from: { x: number; y: number }): string | null {
+        // Emit pickup on the cycle after arriving at a parcel
+        if (this.pendingPickup) {
+            this.pendingPickup = false;
+            return 'pickup';
+        }
+
         // If there is no current intention or the path is empty, we cannot move
         if (!this.currentIntention || this.currentIntention.path.length === 0) return null;
 
@@ -128,6 +146,9 @@ export class Intentions {
 
         // If the path is now empty after shifting, we can drop the intention
         if (this.currentIntention.path.length === 0) {
+            if (this.currentIntention.desire.type === "GET_PARCEL") {
+                this.pendingPickup = true;
+            }
             this.currentIntention = null;
         }
         return direction;

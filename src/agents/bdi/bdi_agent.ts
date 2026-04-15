@@ -103,7 +103,10 @@ export class BDIAgent {
         if (!me?.lastPosition) return;
 
         const nextStep = this.intentions.getNextStep(me.lastPosition);
-        if (nextStep !== null) {
+        if (nextStep === 'pickup') {
+            await this.socket.emit('pickup', []);
+            if (this.debug) console.log("[EXECUTE] Picking up parcel.");
+        } else if (nextStep !== null) {
             await this.socket.emit('move', nextStep);
             if (this.debug) console.log("[EXECUTE] Moving to next step:", nextStep);
         } else {
