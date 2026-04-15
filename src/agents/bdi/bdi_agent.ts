@@ -1,7 +1,7 @@
 import { IOConfig, IOTile, IOAgent, IOSensing } from "../../models/djs.js";
 import { Beliefs } from "./belief/beliefs.js";
 import { getDesires } from "./desire/desires.js";
-import type { DesireType } from "../../models/desires.js";
+import { Intentions } from "./intention/intentions.js";
 
 /**
  * BDI Agent Implementation
@@ -12,7 +12,7 @@ export class BDIAgent {
     private socket: any;
     private debug: boolean;
     private beliefs: Beliefs;
-    private intentions: DesireType[];
+    private intentions: Intentions;
 
     /**
      * @param socket - The socket connection to the Deliveroo.js server.
@@ -22,7 +22,7 @@ export class BDIAgent {
         this.socket = socket;
         this.debug = debug;
         this.beliefs = new Beliefs();
-        this.intentions = [];
+        this.intentions = new Intentions();
 
         // Initialize the agent info in the beliefs once the connection is established
         this.socket.once('you', (info : IOAgent) => {
@@ -84,31 +84,30 @@ export class BDIAgent {
 
     /**
      * Deliberate method processes the current beliefs to form desires and intentions.
+     * On each sensing cycle: validate the current plan, replan if needed, then execute one step.
      */
     deliberate() {
-        // Generate and filter desires based on the current beliefs
-        if (this.debug) console.log("[DELIBERATE] Desires:", getDesires(this.beliefs));
-        //this.intention();
-    }
+        const desires = getDesires(this.beliefs);
+        if (this.debug) console.log("[DELIBERATE] Desires:", desires);
 
-    /**
-     * This method filters the desires to form intentions.
-     */
-    intention() {
-        // Placeholder: turn every desire directly into an intention
-        this.intentions = [];
-        if (this.debug) console.log("[INTENTIONS] Intentions:", this.intentions);
-        // Execute the intentions immediately for demonstration purposes
+        this.intentions.update(this.beliefs, desires);
+
         this.execute();
     }
 
     /**
-     * Execute Intentions method performs actions based on the current intentions.
+     * Execute one step of the current intention by emitting a move to the socket.
      */
-    execute() {
-        this.intentions.forEach(async (intention) => {
-            if (this.debug) console.log("[EXECUTE] Executing intention:", intention);
-            //const result = await this.socket.emitMove("down");
-        });
+    async execute() {
+        const me = this.beliefs.agents.getCurrentMe();
+        if (!me?.lastPosition) return;
+
+        const nextStep = this.intentions.getNextStep(me.lastPosition);
+        if (nextStep !== null) {
+            await this.socket.emit('move', nextStep);
+            if (this.debug) console.log("[EXECUTE] Moving to next step:", nextStep);
+        } else {
+            if (this.debug) console.log("[EXECUTE] No valid next step to execute.");
+        }
     }
 }
