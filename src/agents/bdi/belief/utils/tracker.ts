@@ -88,6 +88,8 @@ export class Tracker<T extends Positionable> {
     /**
      * Invalidate lastPosition for tracked objects whose last known position is within the visible area but were not sensed there.
      * If an object's last known position is visible but the object was not sensed at that position, it has moved to an unknown location.
+     * 
+     * NOTE: this doesn't remove the object from the tracker, it just sets its lastPosition to null to indicate that we no longer have a valid location for it.
      * @param sensedItems Items observed in the current sensing window (used to exclude already-sensed objects)
      * @param sensedPositions Positions currently within the agent's visible range
      */

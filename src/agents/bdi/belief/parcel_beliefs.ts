@@ -131,16 +131,6 @@ export class ParcelBeliefs {
         return this.parcels.getCurrentAll().filter(p => p.carriedBy === agentId);
     }
 
-    /** 
-     * The available parcel with the highest reward, or null if no parcels are available.
-     * @return The available parcel with the highest reward, or null if no parcels are available.
-     */
-    getBestRewardParcel(): Parcel | null {
-        const free = this.getAvailableParcels();
-        if (!free.length) return null;
-        return free.reduce((best, p) => p.reward > best.reward ? p : best);
-    }
-
     /**
      * Remove parcels from beliefs that are known to have been delivered based on a list of delivered parcel IDs.
      * @param deliveredParcels An array of parcels that have been delivered, used to clean up beliefs by removing them from memory. 
