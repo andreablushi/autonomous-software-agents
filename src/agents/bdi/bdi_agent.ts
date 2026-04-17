@@ -1,8 +1,7 @@
 import { IOConfig, IOTile, IOAgent, IOSensing } from "../../models/djs.js";
 import { Beliefs } from "./belief/beliefs.js";
-import { getDesires } from "./desire/desires.js";
+import { generateDesires } from "./desire/desire_generator.js";
 import { Intentions } from "./intention/intentions.js";
-import type { DesireType, NavigationDesire } from "../../models/desires.js";
 
 /**
  * BDI Agent Implementation
@@ -91,30 +90,38 @@ export class BDIAgent {
      * On each sensing cycle: validate the current plan, replan if needed, then execute one step.
      */
     deliberate() {
-        const desires = getDesires(this.beliefs);
+        // Generate desires based on the current beliefs
+        const desires = generateDesires(this.beliefs);
+
         if (this.debug) console.log("[DELIBERATE] Desires:", desires);
-        // Action desires have no navigation target — keep them out of the intention planner
-        const navDesires = desires.filter((d): d is NavigationDesire => d.type !== 'PICKUP_PARCEL' && d.type !== 'PUTDOWN_PARCEL');
-        this.intentions.update(this.beliefs, navDesires);
-        this.execute(desires[0]);
+
+        // Update intentions based on the new desires and current beliefs
+        this.intentions.update(this.beliefs, desires);
+
+        // Execute the next step of the current intention
+        this.execute();
     }
 
     /**
      * Execute one step of the current intention by emitting a move to the socket.
      */
-    async execute(topDesire?: DesireType) {
+    async execute() {
+        // Get current position from beliefs to compute the next step direction
         const me = this.beliefs.agents.getCurrentMe();
         if (!me?.lastPosition) return;
 
-        if (topDesire?.type === 'PICKUP_PARCEL') {
+        // Get the next step from the intentions manager
+        const move = this.intentions.getNextAction(me.lastPosition);
+
+        // Handle action desires (pickup/putdown) immediately without pathfinding
+        if (move === 'pickup') {
             this.moving = true;
             await this.socket.emitPickup();
             this.moving = false;
             if (this.debug) console.log("[EXECUTE] Picking up parcel.");
             return;
         }
-
-        if (topDesire?.type === 'PUTDOWN_PARCEL') {
+        else if(move === 'putdown') {
             this.moving = true;
             await this.socket.emitPutdown();
             this.moving = false;
@@ -122,15 +129,15 @@ export class BDIAgent {
             if (this.debug) console.log("[EXECUTE] Delivering parcel.");
             return;
         }
-
-        const nextStep = this.intentions.getNextStep(me.lastPosition);
-        if (nextStep !== null) {
+        else if (move === null) {
+            if (this.debug) console.log("[EXECUTE] No move to execute.");
+            return;
+        }
+        else{
             this.moving = true;
-            await this.socket.emitMove(nextStep);
+            await this.socket.emitMove(move);
             this.moving = false;
-            if (this.debug) console.log("[EXECUTE] Moving to next step:", nextStep);
-        } else {
-            if (this.debug) console.log("[EXECUTE] No valid next step to execute.");
+            if (this.debug) console.log("[EXECUTE] Moving to next step:", move);
         }
     }
 }

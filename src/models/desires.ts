@@ -29,8 +29,11 @@ export type PutdownParcelDesire = {
     type: "PUTDOWN_PARCEL"; // The agent wants to put down parcels it is currently standing on a delivery tile
 };
 
-// Desires that require navigation — always have a `target` position
+// Desires that require navigation and always have a `target` position
 export type NavigationDesire = ExploreDesire | ReachParcelDesire | DeliverParcelDesire;
 
 // Union type for all possible desires that the agent can have based on its beliefs
 export type DesireType = NavigationDesire | PickupParcelDesire | PutdownParcelDesire;
+
+// Grouped map for easier access to desires by type
+export type GeneratedDesires = Map<DesireType["type"], DesireType[]>;
