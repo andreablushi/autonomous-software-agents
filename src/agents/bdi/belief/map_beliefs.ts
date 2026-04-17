@@ -64,8 +64,6 @@ export class MapBeliefs {
     isWalkable(position: Position): boolean {
         const tile = this.getTileAt(position);
         return tile !== null && tile.type !== TILE_TYPE.WALL;
-        //TODO: consider the directional tiles as well
-        //TODO: check for crates as well, but we also need to consider how sure we are about crate positions and whether we want to treat them as static obstacles or dynamic ones
     }
     
     /** 

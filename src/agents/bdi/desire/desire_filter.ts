@@ -59,7 +59,7 @@ export function getBestDesire(desires: GeneratedDesires, beliefs: Beliefs): Desi
 function filterReachParcel(reaches: ReachParcelDesire[], beliefs: Beliefs): ReachParcelDesire | null {
     if (reaches.length === 0) return null;
     return reaches.reduce((best, d) =>
-        scoreReach(d, beliefs) > scoreReach(best, beliefs) ? d : best
+        scoreReachDesire(d, beliefs) > scoreReachDesire(best, beliefs) ? d : best
     );
 }
 
@@ -72,7 +72,7 @@ function filterReachParcel(reaches: ReachParcelDesire[], beliefs: Beliefs): Reac
 function filterDeliverParcel(delivers: DeliverParcelDesire[], beliefs: Beliefs): DeliverParcelDesire | null {
     if (delivers.length === 0) return null;
     return delivers.reduce((best, d) =>
-        scoreDeliver(d, beliefs) > scoreDeliver(best, beliefs) ? d : best
+        scoreDeliverDesire(d, beliefs) > scoreDeliverDesire(best, beliefs) ? d : best
     );
 }
 
@@ -83,7 +83,6 @@ function filterDeliverParcel(delivers: DeliverParcelDesire[], beliefs: Beliefs):
  * @param beliefs Current beliefs of the agent, used for scoring the desires.
  * @returns The chosen desire, or null if no candidates are available.
  */
-//#TODO: Placeholder
 function chooseReachOrDeliver( reach: ReachParcelDesire | null, deliver: DeliverParcelDesire | null, beliefs: Beliefs): NavigationDesire | null {
     // If both are null return null
     if (!reach && !deliver) return null;
@@ -93,8 +92,8 @@ function chooseReachOrDeliver( reach: ReachParcelDesire | null, deliver: Deliver
     if (!deliver) return reach;
 
     // If both are available, score and compare
-    const reachScore = scoreReach(reach, beliefs);
-    const deliverScore = scoreDeliver(deliver, beliefs);
+    const reachScore = scoreReachDesire(reach, beliefs);
+    const deliverScore = scoreDeliverDesire(deliver, beliefs);
     return reachScore >= deliverScore ? reach : deliver;
 }
 
@@ -103,8 +102,7 @@ function chooseReachOrDeliver( reach: ReachParcelDesire | null, deliver: Deliver
  * Falls back to 0 when the parcel can't be matched or the agent position is unknown.
  * Basic heuristic — replace this function to improve goal selection in the future.
  */
-//#TODO: Placeholder
-function scoreReach(desire: ReachParcelDesire, beliefs: Beliefs): number {
+function scoreReachDesire(desire: ReachParcelDesire, beliefs: Beliefs): number {
     const me = beliefs.agents.getCurrentMe();
     if (!me?.lastPosition) return 0;
 
@@ -124,8 +122,7 @@ function scoreReach(desire: ReachParcelDesire, beliefs: Beliefs): number {
  * Falls back to 0 when the agent position is unknown or nothing is being carried.
  * Basic heuristic — replace this function to improve goal selection in the future.
  */
-//#TODO: Placeholder
-function scoreDeliver(desire: DeliverParcelDesire, beliefs: Beliefs): number {
+function scoreDeliverDesire(desire: DeliverParcelDesire, beliefs: Beliefs): number {
     const me = beliefs.agents.getCurrentMe();
     if (!me?.lastPosition) return 0;
 

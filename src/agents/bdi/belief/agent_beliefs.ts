@@ -5,15 +5,12 @@ import { Direction, DirectionPrediction, Position } from "../../../models/positi
 import { Memory } from "./utils/memory.js";
 import { Tracker } from "./utils/tracker.js";
 
-
-
 /**
  * Beliefs about the agent itself and other observed agents.
  */
 export class AgentBeliefs {
 
     private me: Agent | null = null;                        // Current self-belief, updated directly from observations, without memory
-    //#TODO: Create a memory for me to create an heatmap of where I have been for the EXPLORE beliefs
     private friends = new Tracker<Agent>();                 // Tracker of friend agents, keyed by ID, without memory
     private enemies = new Tracker<Agent>();                 // Tracker of enemy agents, keyed by ID, keeping only the latest observation for each enemy, without memory
     private enemiesMemory = new Memory<Agent>(1_000, 10);   // Memory of enemy agents, keyed by ID, with TTL-based eviction
@@ -176,6 +173,10 @@ export class AgentBeliefs {
 
         // Return the predicted direction along with a confidence score, which is the ratio of votes for the winning direction to the total number of valid position pairs analyzed
         return { direction: winner, confidence: maxVotes / totalValidPairs };
+    }
+
+    getCarryCapacity(): number | null {
+        return this.playerSettings?.carry_capacity ?? null;
     }
 
     /**

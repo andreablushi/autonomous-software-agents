@@ -42,29 +42,6 @@ export class Memory<T> {
     }
 
     /**
-     * Get the latest known value for the given id, or undefined if no observations exist.
-     * @param key id of the object being tracked
-     * @returns The most recent value for the id, or undefined if no entries exist.
-     */
-    getCurrent(key: string): T | undefined {
-        // Get all the entries for the key
-        const entries = this.memoryMap.get(key);
-        if (!entries?.length) return undefined;
-
-        return entries[entries.length - 1].value;
-    }
-
-    /**
-     * Get the latest known value for every key, including stale ones (list of seen objects).
-     * @returns An array of the most recent values for all keys.
-     */
-    getCurrentAll(): T[] {
-        // For each key, get the most recent entry's value
-        return Array.from(this.memoryMap.values())
-            .map(entries => entries[entries.length - 1].value);
-    }
-
-    /**
      * Get all observations for the given key within the TTL window.
      * @param key id of the object being tracked
      * @returns An array of values for the key within the TTL window.
@@ -73,17 +50,6 @@ export class Memory<T> {
         const now = Date.now();
         return (this.memoryMap.get(key) ?? [])
             .filter(e => now - e.seenAt <= this.ttl);
-    }
-
-    /**
-     * Get the timestamp of when the given key was last updated, or undefined if the key does not exist.
-     * @param key id of the object being tracked
-     * @returns The timestamp of the last update for the key, or undefined if the key does not exist.
-     */
-    getLastTimestamp(key: string): number | undefined {
-        const entries = this.memoryMap.get(key);
-        if (!entries?.length) return undefined;
-        return entries[entries.length - 1].seenAt;
     }
 
     /**
