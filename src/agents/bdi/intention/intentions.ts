@@ -120,10 +120,14 @@ export class Intentions {
             return false;
         }
 
-        // Check if every step in the observation range and in the path is still walkable
-        //#TODO: Check only observation range
+        // Check if every step within the observation range is still walkable
+        const obsDistance = beliefs.agents.getObservationDistance();
         const steps = [me.lastPosition, ...this.currentIntention.path];
         for (let i = 0; i < steps.length - 1; i++) {
+            // If the step is beyond the observation distance, we cannot validate it
+            const manhattanDist = Math.abs(steps[i].x - me.lastPosition.x) + Math.abs(steps[i].y - me.lastPosition.y);
+            if (obsDistance !== null && manhattanDist > obsDistance) break;
+            // If any step in the path is not walkable, the path is no longer valid
             if (!beliefs.map.isWalkable(steps[i], steps[i + 1])) return false;
         }
 
