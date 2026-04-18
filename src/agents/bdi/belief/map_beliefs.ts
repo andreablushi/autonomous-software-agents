@@ -26,20 +26,23 @@ export class MapBeliefs {
      * @returns void
      */
     updateMap(width: number, height: number, tiles: IOTile[]): void {
+        // Normalize tile types to strings — the server may send numeric values (e.g. 1) instead of strings ('1')
+        const normalizedTiles = tiles.map(t => ({ ...t, type: String(t.type) as TileType }));
+
         // Pre-fill with WALL so any tile absent from the server payload is treated as unwalkable
         const matrix = Array.from({ length: height }, () =>
             Array<TileType>(width).fill(TILE_TYPE.WALL)
         );
-        for (const t of tiles) {
+        for (const t of normalizedTiles) {
             matrix[t.y][t.x] = t.type;
         }
         this.map = { width, height, tiles: matrix };
 
         // Precompute static tile lists — map never changes after this point
-        this.spawnTiles = tiles
+        this.spawnTiles = normalizedTiles
             .filter(t => t.type === TILE_TYPE.SPAWN_POINT)
             .map(t => ({ x: t.x, y: t.y, type: t.type }));
-        this.deliveryTiles = tiles
+        this.deliveryTiles = normalizedTiles
             .filter(t => t.type === TILE_TYPE.DELIVERY_POINT)
             .map(t => ({ x: t.x, y: t.y, type: t.type }));
     }
