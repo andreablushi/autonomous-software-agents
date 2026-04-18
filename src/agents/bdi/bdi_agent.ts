@@ -95,11 +95,11 @@ export class BDIAgent {
     deliberate() {
         // Generate desires based on the current beliefs
         const desires = generateDesires(this.beliefs);
-
         if (this.debug) console.log("[DELIBERATE] Desires:", desires);
 
         // Update intentions based on the new desires and current beliefs
         this.intentions.update(this.beliefs, desires);
+        if (this.debug) console.log("[DELIBERATE] Current intention:", this.intentions.getCurrentIntention());    
 
         // Execute the next step of the current intention
         this.execute();
