@@ -1,21 +1,21 @@
 import type { GameMap, Tile } from "../../../models/map.js";
-import type { Agent } from "../../../models/agent.js";
 import type { Crate } from "../../../models/crate.js";
 import type { Position } from "../../../models/position.js";
 import type { IOTile, IOCrate } from "../../../models/djs.js";
 import { TILE_TYPE, type TileType } from "../../../models/tile_type.js";
 import { Tracker } from "./utils/tracker.js";
-import { manhattanDistance } from "../../../utils/metrics.js";
 
 /**
  * Beliefs about the static map layout and dynamic crate positions.
  */
 export class MapBeliefs {
+    private map: GameMap | null = null;              // Static map layout, set once at the start of the game
+    private spawnTiles: Tile[] = [];                 // Precomputed on updateMap; map is static so this never changes
+    private deliveryTiles: Tile[] = [];              // Precomputed on updateMap; map is static so this never changes
+    
+    private crates = new Tracker<Crate>();                           // Latest-only store; eviction is handled by MapBeliefs.evict()
+    private spawnTilesSensingTimes = new Map<string, number>();      // Keep track of when spawn tiles were last sensed, keyed as "x,y"
 
-    private map: GameMap | null = null;             // Static map layout, set once at the start of the game
-    private spawnTiles: Tile[] = [];                // Precomputed on updateMap; map is static so this never changes
-    private deliveryTiles: Tile[] = [];             // Precomputed on updateMap; map is static so this never changes
-    private crates = new Tracker<Crate>();          // Latest-only store; eviction is handled by MapBeliefs.evict()
     
     /**
      * Initialize map beliefs from the given map info.
@@ -66,7 +66,7 @@ export class MapBeliefs {
         return tile !== null && tile.type !== TILE_TYPE.WALL;
     }
     
-    /** 
+    /**
      * All parcel spawn tiles.
      * @return An array of spawn tiles
      */
@@ -75,41 +75,34 @@ export class MapBeliefs {
     }
 
     /**
-     * Get the nearest spawn tile to the agent's last known position.
-     * @param agent The agent for which to find the nearest spawn tile.
-     * @returns The nearest spawn tile, or null if no free spawn tiles are available.
+     * Update the sensing times for all spawn tiles based on the positions sensed.
+     * @param sensedPositions Array of positions that are currently sensed.
+     * @param currentTime The current time to update the sensing times.
      */
-    getNearestSpawnTile(agent: Agent): Tile {
-        return this.getNearestTile(this.spawnTiles, agent);
+    updateSpawnTilesSensingTimes(sensedPositions: Position[], currentTime: number): void {
+        // For each sensed position, if it's a spawn tile, update its last sensing time
+        sensedPositions.forEach(position => {
+            const tile = this.getTileAt(position);
+            if (tile && tile.type === TILE_TYPE.SPAWN_POINT) {
+                this.spawnTilesSensingTimes.set(`${position.x},${position.y}`, currentTime);
+            }
+        });
     }
 
+    /**
+     * Get the last sensing time for a given spawn tile position, or undefined if it has never been sensed.
+     * @param position The position of the spawn tile to query.
+     * @returns The timestamp of the last sensing of the spawn tile, or undefined if never sensed.
+     */
+    getSpawnTilesSensingTime(position: Position): number | undefined {
+        return this.spawnTilesSensingTimes.get(`${position.x},${position.y}`);
+    }
     /**
      * All parcel delivery tiles.
      * @return An array of delivery tiles
      */
     getDeliveryTiles(): Tile[] {
         return this.deliveryTiles;
-    }
-
-    /**
-     * Get the nearest delivery tile to the agent's last known position.
-     * @param agent The agent for which to find the nearest delivery tile.
-     * @returns The nearest delivery tile.
-     */
-    getNearestDeliveryTile(agent: Agent): Tile {
-        return this.getNearestTile(this.deliveryTiles, agent);
-    }
-
-    /**
-     * Return the tile in `tiles` closest to the agent's last known position.
-     * Falls back to the first tile if the agent position is unknown.
-     */
-    private getNearestTile(tiles: Tile[], agent: Agent): Tile {
-        const agentPos = agent.lastPosition;
-        if (!agentPos) return tiles[0];
-        return tiles.reduce((nearest, tile) => {
-            return manhattanDistance(tile, agentPos) < manhattanDistance(nearest, agentPos) ? tile : nearest;
-        }, tiles[0]);
     }
 
     /**

@@ -67,6 +67,9 @@ export class BDIAgent {
 
             // Update beliefs about crates based on the sensing event data
             this.beliefs.map.updateCrates(sensing.crates, sensing.positions);
+
+            // Record sensing times for all spawn tiles currently in sensor range
+            this.beliefs.map.updateSpawnTilesSensingTimes(sensing.positions, Date.now());
             
             if (this.debug) console.log(
                 "[PERCEIVE] Sensing update — agents:", sensing.agents.length,
