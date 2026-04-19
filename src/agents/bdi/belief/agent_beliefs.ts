@@ -110,6 +110,15 @@ export class AgentBeliefs {
     }
 
     /**
+     * Get the confidence level of the belief about a specific enemy agent
+     * @param id Enemy agent ID
+     * @returns Confidence score between 0 and 1
+     */
+    getEnemyConfidence(id: string): number | undefined {
+        return this.enemies.getConfidence(id, 2000);
+    }
+    
+    /**
      * Predict the direction an enemy is moving based on its position history.
      * @param id Enemy agent ID
      * @returns Direction prediction with confidence score, or null if insufficient history

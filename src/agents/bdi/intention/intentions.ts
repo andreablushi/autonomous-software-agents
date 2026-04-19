@@ -2,7 +2,7 @@ import { aStar } from "../navigation/a_star.js";
 import type { Beliefs } from "../belief/beliefs.js";
 import type {  GeneratedDesires } from "../../../models/desires.js";
 import type { Intention } from "../../../models/intentions.js";
-import type { Position } from "../../../models/position.js";
+import type { DirectionPrediction, Position } from "../../../models/position.js";
 import { getBestDesire } from "../desire/desire_filter.js";
 
 /**
@@ -16,6 +16,22 @@ function posToDirection(from: Position, to: Position): string {
     if (to.x < from.x) return 'left';
     if (to.y > from.y) return 'up';
     return 'down';
+}
+
+/**
+ * Applies a direction to a position, returning the new position.
+ * @param pos - The original position
+ * @param direction - The direction to apply ('up', 'down', 'left', 'right')
+ * @returns The new position after applying the direction, or null if the direction is invalid.
+ */
+function applyDirection(pos: Position, direction: string): Position | null {
+    switch (direction) {
+        case 'up': return { x: pos.x, y: pos.y + 1 };
+        case 'down': return { x: pos.x, y: pos.y - 1 };
+        case 'left': return { x: pos.x - 1, y: pos.y };
+        case 'right': return { x: pos.x + 1, y: pos.y };
+        default: return null;
+    }
 }
 
 /**
@@ -55,13 +71,8 @@ export class Intentions {
 
         // Validate current path
         if (!this.validatePath(beliefs)) {
-            let agentBlocked: Position | null = null;
-            // If the current path is no longer valid, we can try to replan by setting the temporary blocks
-            if(this.isNextStepBlockedByAgent(beliefs)){
-                agentBlocked = this.currentIntention?.path[0] || null;
-            }
             // Replan the path
-            this.plan(beliefs, agentBlocked);
+            this.plan(beliefs);
         }
     }
 
@@ -140,19 +151,33 @@ export class Intentions {
      * @param beliefs The current beliefs of the agent
      * @returns true if the next step is occupied by a known agent, false otherwise.
      */
-    private isNextStepBlockedByAgent(beliefs: Beliefs): boolean {
-        // If there is no current intention or path
+    private isNextStepBlockedByAgent(beliefs: Beliefs): Boolean {
+        // If there is no current intention or path, we cannot check for blocking
         if (!this.currentIntention || this.currentIntention.path.length === 0) return false;
 
         // Get the next step in the path
         const next = this.currentIntention.path[0];
-        // Get all known agents (friends and enemies) from beliefs
-        const agents = [
-            ...beliefs.agents.getCurrentFriends(),
-            ...beliefs.agents.getCurrentEnemies(),
-        ];
-        // Check if any agent is currently at the next step position
-        return agents.some(a => a.lastPosition?.x === next.x && a.lastPosition?.y === next.y);
+        // Get the list of currently believed enemy agents from beliefs
+        const enemies = beliefs.agents.getCurrentEnemies();
+
+        for (const enemy of enemies) {
+            const pos = enemy.lastPosition;
+            if (!pos) continue;
+
+            // Enemy already on the next step
+            if (pos.x === next.x && pos.y === next.y) return true;
+
+            // Enemy adjacent to the next step that is going to move onto it in the next turn with high confidence
+            const direction = beliefs.agents.predictEnemyDirection(enemy.id);
+            if (direction && direction.confidence >= 0.5) {
+                const predictedPos = applyDirection(pos, direction.direction);
+                if (predictedPos && predictedPos.x === next.x && predictedPos.y === next.y) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -177,7 +202,7 @@ export class Intentions {
 
             // For navigation desires, set the intention and try to plan a path
             this.currentIntention = { desire, path: [] };
-            this.plan(beliefs, null);
+            this.plan(beliefs);
 
             // If a valid path is found, we can keep this intention
             if (this.currentIntention !== null) return; 
@@ -201,7 +226,7 @@ export class Intentions {
      * @param temporaryBlocked - An optional position to treat as temporarily blocked during pathfinding.
      * @returns void, but updates the current intention's path if a valid path is found, or drops the intention if no path is found.
      */
-    private plan(beliefs: Beliefs, temporaryBlocked: Position | null): void {
+    private plan(beliefs: Beliefs): void {
         // If there is no current intention or the desire doesn't have a target, we cannot plan a path
         if (!this.currentIntention) return;
         if (!('target' in this.currentIntention.desire)) return;
@@ -210,9 +235,20 @@ export class Intentions {
         const me = beliefs.agents.getCurrentMe();
         if (!me?.lastPosition) return;
 
+        const temporaryBlocked : Position[] = [];
+        // If the next step is blocked by an agent, 
+        // we can try to replan by considering path without enemies with confidence above 0.9
+        const enemies = beliefs.agents.getCurrentEnemies();
+        for (const enemy of enemies) {
+            const confidence = beliefs.agents.getEnemyConfidence(enemy.id);
+            if (confidence && confidence > 0.7 && enemy.lastPosition) {
+                temporaryBlocked.push(enemy.lastPosition);
+            }
+        }
+
         // Compute a path from the current position
         const path = aStar(me.lastPosition, this.currentIntention.desire.target, (from, to) => {
-            if (temporaryBlocked && to.x === temporaryBlocked.x && to.y === temporaryBlocked.y) return false;
+            if (temporaryBlocked.some(b => b.x === to.x && b.y === to.y)) return false;
             return beliefs.map.isWalkable(from, to);
         });
 
