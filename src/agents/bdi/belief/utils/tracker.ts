@@ -9,6 +9,15 @@ type Positionable = { id: string; lastPosition: Position | null };
 export class Tracker<T extends Positionable> {
     // Internal mapping from ids to their latest observed value and the timestamp of that observation.
     private store = new Map<string, Observation<T>>();
+    private keepHalfPosition: boolean;
+
+    /**
+     * Constructor allows configuring whether to keep half positions (non-integer coordinates) in the tracker, which can be useful for tracking moving agents without memorizing intermediate positions.
+     * @param keepHalfPosition Whether to keep half positions in the tracker.
+     */
+    constructor(keepHalfPosition: boolean = false) {
+        this.keepHalfPosition = keepHalfPosition;
+    }
 
     /**
      * Update the value for a given id along with the current timestamp.
@@ -19,7 +28,7 @@ export class Tracker<T extends Positionable> {
     update(key: string, value: T): void {
         // Avoid memorizing intermediate positions
         const pos = value.lastPosition;
-        if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y))) return;
+        if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y)) && !this.keepHalfPosition) return;
         // Store the new value along with the current timestamp
         this.store.set(key, { value, seenAt: Date.now() });
     }
@@ -37,7 +46,7 @@ export class Tracker<T extends Positionable> {
         
         // Avoid memorizing intermediate positions
         const pos = value.lastPosition;
-        if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y))) return;
+        if (pos && (!Number.isInteger(pos.x) || !Number.isInteger(pos.y)) && !this.keepHalfPosition) return;
 
         // Update the object with the new value, keeping old timestamp
         this.store.set(key, { value, seenAt: existing.seenAt });

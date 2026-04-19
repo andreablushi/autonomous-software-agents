@@ -12,7 +12,7 @@ export class AgentBeliefs {
 
     private me: Agent | null = null;                        // Current self-belief, updated directly from observations, without memory
     private friends = new Tracker<Agent>();                 // Tracker of friend agents, keyed by ID, without memory
-    private enemies = new Tracker<Agent>();                 // Tracker of enemy agents, keyed by ID, keeping only the latest observation for each enemy, without memory
+    private enemies = new Tracker<Agent>(true);             // Tracker of enemy agents, keyed by ID, keeping only the latest observation for each enemy, without memory, keeping half positions
     private enemiesMemory = new Memory<Agent>(1_000, 10);   // Memory of enemy agents, keyed by ID, with TTL-based eviction
     private playerSettings: PlayerSettings | null = null;   // Player settings from config
 
@@ -117,7 +117,7 @@ export class AgentBeliefs {
     getEnemyConfidence(id: string): number | undefined {
         return this.enemies.getConfidence(id, 2000);
     }
-    
+
     /**
      * Predict the direction an enemy is moving based on its position history.
      * @param id Enemy agent ID
@@ -127,6 +127,18 @@ export class AgentBeliefs {
     predictEnemyDirection(id: string): DirectionPrediction | null {
         // If I have a tracking for this enemy, use its history to predict
         if(!this.enemies.getCurrent(id)?.lastPosition) return null;
+
+        // If the enemy is in an half position (not fully in a tile), we can predict that it's moving in the direction of the half position
+        const lastPos = this.enemies.getCurrent(id)!.lastPosition!;
+        if (!Number.isInteger(lastPos.x) || !Number.isInteger(lastPos.y)) {
+            let dir: Direction;
+            // If the x coordinate is not an integer, the movement is horizontal, and the direction depends on whether the half position is in the left or right half of the tile. If the y coordinate is not an integer, the movement is vertical, and the direction depends on whether the half position is in the upper or lower half of the tile.
+            if (!Number.isInteger(lastPos.x)) dir = lastPos.x % 1 < 0.5 ? 'right' : 'left';
+            else dir = lastPos.y % 1 < 0.5 ? 'down' : 'up';
+            // Return with max confidence
+            return { direction: dir, confidence: 1.0 };
+        }
+
         // Get the history of observed positions for the specified enemy agent
         const history = this.enemiesMemory.getHistory(id);
         if (history.length < 2) return null;
