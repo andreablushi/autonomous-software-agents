@@ -132,15 +132,33 @@ export class ParcelBeliefs {
     }
 
     /**
+     * Optimistically mark acknowledged parcels as carried by the given agent.
+     * @param parcelIds IDs returned by a successful pickup ack.
+     * @param agentId The picking agent ID.
+     * @param position The tile where the pickup happened.
+     */
+    markPickedUpParcels(parcelIds: string[], agentId: string, position: Position): void {
+        for (const parcelId of parcelIds) {
+            const existing = this.parcels.getCurrent(parcelId);
+            if (!existing) continue;
+
+            this.parcels.updateValuePreservingTimestamp(parcelId, {
+                ...existing,
+                carriedBy: agentId,
+                lastPosition: { x: position.x, y: position.y },
+            });
+        }
+    }
+
+    /**
      * Remove parcels from beliefs that are known to have been delivered based on a list of delivered parcel IDs.
      * @param deliveredParcels An array of parcels that have been delivered, used to clean up beliefs by removing them from memory. 
      * @returns void
      */
     cleanDeliveredParcels(deliveredParcels: Parcel[]): void {
-        const deliveredParcelIds = deliveredParcels.map(p => p.id);
-        deliveredParcelIds.forEach(id => {
-            this.parcels.delete(id);
-            this.lastDecayApplied.delete(id);
-        });
+        for (const parcel of deliveredParcels) {
+            this.parcels.delete(parcel.id);
+            this.lastDecayApplied.delete(parcel.id);
+        }
     }   
 }

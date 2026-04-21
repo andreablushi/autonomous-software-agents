@@ -1,4 +1,4 @@
-import type { DesireType, NavigationDesire } from "./desires.js";
+import type { DesireType } from "./desires.js";
 import type { Position } from "./position.js";
 
 /**

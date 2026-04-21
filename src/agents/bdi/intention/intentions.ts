@@ -1,8 +1,9 @@
 import { aStar } from "../navigation/a_star.js";
 import type { Beliefs } from "../belief/beliefs.js";
-import type {  GeneratedDesires } from "../../../models/desires.js";
+import type { DesireType, GeneratedDesires } from "../../../models/desires.js";
 import type { Intention, IntentionQueue } from "../../../models/intentions.js";
 import type { Position } from "../../../models/position.js";
+import { generateDesires } from "../desire/desire_generator.js";
 import { getIntentionQueue } from "../desire/desire_filter.js";
 
 /**
@@ -36,6 +37,7 @@ export class Intentions {
         // If no desires, drop current intentions
         if (desires.size === 0) {
             this.intentionsQueue = [];
+            this.currentIntention = null;
             return;
         }
 
@@ -70,6 +72,16 @@ export class Intentions {
     }
 
     /**
+     * Helper function to compare two desires for equality
+     */
+    private sameDesire(a: DesireType, b: DesireType): boolean {
+        if (a.type !== b.type) return false;
+        if (!('target' in a) && !('target' in b)) return true;
+        if (!('target' in a) || !('target' in b)) return false;
+        return a.target.x === b.target.x && a.target.y === b.target.y;
+    }
+
+    /**
      * Validates if the current intention is still valid based on the current desires and beliefs.
      * @returns true if the current intention is still valid, false otherwise.
      */
@@ -80,22 +92,7 @@ export class Intentions {
         // Check if the desire of the current intention is still the top desire
         const topDesire = this.intentionsQueue[0]?.desire;
         if (!topDesire) return false;
-        const intentionDesire = this.currentIntention.desire;
-
-        // First check if the desire type is still the same
-        if(topDesire.type !== intentionDesire.type) {
-            return false;
-        }
-        
-        // If it's a navigation desire, also check if the target is still the same
-        if ('target' in topDesire && 'target' in intentionDesire) {
-            if (topDesire.target.x !== intentionDesire.target.x || topDesire.target.y !== intentionDesire.target.y) {
-                return false;
-            }
-        }
-
-        // The current intention is still valid
-        return true;
+        return this.sameDesire(topDesire, this.currentIntention.desire);
     }
 
     /**
@@ -133,7 +130,7 @@ export class Intentions {
      * @param beliefs The current beliefs of the agent
      * @returns true if the next step is occupied by a known agent, false otherwise.
      */
-    private isNextStepBlockedByAgent(beliefs: Beliefs): Boolean {
+    private isNextStepBlockedByAgent(beliefs: Beliefs): boolean {
         // If there is no current intention or path, we cannot check for blocking
         if (!this.currentIntention || this.currentIntention.path.length === 0) return false;
 
@@ -192,7 +189,7 @@ export class Intentions {
             if (this.currentIntention !== null) return; 
 
             // If no valid path is found, the best intention is dropped
-            this.intentionsQueue = this.intentionsQueue.filter(entry => entry.desire !== desire);
+            this.intentionsQueue = this.intentionsQueue.filter(entry => !this.sameDesire(entry.desire, desire));
             
         }
 
@@ -234,7 +231,8 @@ export class Intentions {
     /**
      * Returns the next direction to move and advances the path.
      * @param from - The current position of the agent, used to compute the direction to the next step.
-      * @returns The next direction to move ('up', 'down', 'left', 'right') or null if no intention or path is available.
+     * @param beliefs - The current beliefs of the agent, used to refresh the intention queue after shifting the path.
+     * @returns The next direction to move ('up', 'down', 'left', 'right') or null if no intention or path is available.
      */
     getNextAction(from: { x: number; y: number }, beliefs: Beliefs): string | null {
         // If there is no current intention, we cannot return a next action
@@ -261,28 +259,45 @@ export class Intentions {
 
     /**
      * Advances the path by one step, effectively marking the next step as completed.
-     * @returns void, but updates the current intention's path by removing the first step. If the path becomes empty, drops the current intention.
+     * Afterwards, refreshes the queue from the updated beliefs so execution can continue without waiting for sensing.
+     * @param beliefs The current beliefs of the agent, used to refresh the intention queue after shifting the path.
      */
-    shiftPath(): void {
+    shiftPath(beliefs: Beliefs): void {
         if (this.currentIntention && this.currentIntention.path.length > 0) {
             this.currentIntention.path.shift();
         }
-        else {
+        if (!this.currentIntention || this.currentIntention.path.length === 0) {
             this.currentIntention = null;
         }
+        // Refresh the queue from the updated beliefs so we can continue executing the next step
+        this.update(beliefs, generateDesires(beliefs));
     }
 
     /**
      * Invalidates the current path by marking the next step as temporarily blocked in beliefs and dropping the current intention.
       * @param beliefs The current beliefs of the agent, used to mark the next step as temporarily blocked.
-      * @returns void, but updates beliefs to mark the next step as blocked and drops the current intention.
+      * Failed immediate actions are removed from the in-memory queue to avoid repeating a penalizing action until sensing refreshes beliefs.
      */
     invalidatePath(beliefs: Beliefs): void {
+        const failedIntention = this.currentIntention;
+
         // Mark the next step as temporarily blocked to avoid repeated failed attempts
-        if (this.currentIntention && this.currentIntention.path.length > 0) {
-            beliefs.map.markBlocked(this.currentIntention.path[0]);
+        if (failedIntention && failedIntention.path.length > 0) {
+            beliefs.map.markBlocked(failedIntention.path[0]);
         }
-        // Drop the current intention so that it will be reconsidered in the next deliberation cycle
+
         this.currentIntention = null;
+
+        // Failed immediate actions are removed from the current queue so we do not retry the same penalizing action
+        // until a fresh sensing cycle rebuilds desires from the environment.
+        if (failedIntention?.desire.type === 'PICKUP_PARCEL' || failedIntention?.desire.type === 'PUTDOWN_PARCEL') {
+            this.intentionsQueue = this.intentionsQueue.filter(
+                entry => !this.sameDesire(entry.desire, failedIntention.desire),
+            );
+            this.filterIntention(beliefs);
+            return;
+        }
+
+        this.update(beliefs, generateDesires(beliefs));
     }
 }

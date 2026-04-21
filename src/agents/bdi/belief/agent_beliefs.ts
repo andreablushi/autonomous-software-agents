@@ -50,6 +50,18 @@ export class AgentBeliefs {
     }
 
     /**
+     * Optimistically update the believed position of this agent after a successful movement ack.
+     * @param position The acknowledged destination tile.
+     */
+    updateMyPosition(position: Position): void {
+        if (!this.me) return;
+        this.me = {
+            ...this.me,
+            lastPosition: { x: position.x, y: position.y },
+        };
+    }
+
+    /**
      * Update beliefs about other agents based on the latest observations.
      * @param sensedAgents List of all observed agents from the latest observation, used to update beliefs about friends and enemies.
      */
