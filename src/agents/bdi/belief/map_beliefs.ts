@@ -73,6 +73,9 @@ export class MapBeliefs {
         // If there's no tile (out of bounds) or it's a wall, it's not walkable
         if (tile === null || tile.type === TILE_TYPE.WALL) return false;
 
+        // If it's temporary blocked (e.g. occupied by another agent or crate), it's not walkable
+        if (this.isBlocked(to)) return false;
+
         // Conveyors block entry only from the direction that opposes their push.
         const dx = to.x - from.x;
         const dy = to.y - from.y;
@@ -83,8 +86,7 @@ export class MapBeliefs {
             case TILE_TYPE.CONVEYOR_DOWN:  return dy !== 1;   // blocked if moving up    (dy+1 against down)
         }
 
-        // If it's temporary blocked (e.g. occupied by another agent or crate), it's not walkable
-        if (this.isBlocked(to)) return false;
+
 
         // Otherwise, it's walkable
         return true;
