@@ -13,7 +13,7 @@ export class BDIAgent {
     private debug: boolean;
     private beliefs: Beliefs;
     private intentions: Intentions;
-    private moving = false;
+    private executing = false;
 
     /**
      * @param socket - The socket connection to the Deliveroo.js server.
@@ -93,7 +93,7 @@ export class BDIAgent {
                 console.log("  - Parcels:", this.beliefs.parcels.getCurrentParcels().length, "parcels");
                 console.log("  - Crates:", this.beliefs.map.getCurrentCrates().length, "crates");
             }
-            if (!this.moving) this.deliberate();
+            this.deliberate();
         });
     }
 
@@ -110,8 +110,10 @@ export class BDIAgent {
         this.intentions.update(this.beliefs, desires);
         if (this.debug) console.log("[DELIBERATE] Current intention:", this.intentions.getCurrentIntention());    
 
-        // Execute the next step of the current intention
-        this.execute();
+        // Execute the current intention continuously until there is no next action.
+        if (this.executing) return;
+        this.executing = true;
+        this.executeLoop();
     }
 
     /**
@@ -120,40 +122,27 @@ export class BDIAgent {
     async execute() {
         // Get current position from beliefs to compute the next step direction
         const me = this.beliefs.agents.getCurrentMe();
-        if (!me?.lastPosition) return;
+        if (!me?.lastPosition) return false;
 
         // Get the next step from the intentions manager
         const move = this.intentions.getNextAction(me.lastPosition, this.beliefs);
         let result;
         // Handle action desires (pickup/putdown) immediately without pathfinding
         if (move === 'pickup') {
-            this.moving = true;
-            result =await this.socket.emitPickup();
-            this.moving = false;
+            result = await this.socket.emitPickup();
             if (this.debug) console.log("[EXECUTE] Picking up parcel.");
-            return;
         }
         else if(move === 'putdown') {
-            this.moving = true;
             result = await this.socket.emitPutdown();
-            this.moving = false;
             this.beliefs.parcels.cleanDeliveredParcels(this.beliefs.parcels.getCarriedByAgent(me.id));
-            if (this.debug) console.log("[EXECUTE] Delivering parcel.");
-            return;
+            if (this.debug) console.log("[EXECUTE] Put down parcel.");
         }
         else if (move === null) {
             result = null;
             if (this.debug) console.log("[EXECUTE] No move to execute.");
-            return;
         }
         else{
-            this.moving = true;
-            try {
-                result = await this.socket.emitMove(move);
-            } catch {
-                result = false;
-            }
-            this.moving = false;
+            result = await this.socket.emitMove(move);
             if (this.debug) console.log("[EXECUTE] Moving to next step:", move);
         }
 
@@ -163,5 +152,26 @@ export class BDIAgent {
         } else {
             this.intentions.invalidatePath(this.beliefs); // If the move failed, invalidate the current path to trigger replanning in the next cycle
         }
+
+        return result !== false;
+    }
+
+    /**
+     * Execute loop continuously executes steps of the current intention until there are no more steps to execute
+     * @returns A promise that resolves to true if there are more steps to execute, or false if execution should stop.
+     */
+    private executeLoop() {
+        this.execute()
+            .then((shouldContinue) => {
+                if (shouldContinue) {
+                    this.executeLoop();
+                    return;
+                }
+                this.executing = false;
+            })
+            .catch((err) => {
+                this.executing = false;
+                if (this.debug) console.error("[EXECUTE] Execution error:", err);
+            });
     }
 }

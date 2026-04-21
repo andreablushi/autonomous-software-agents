@@ -163,19 +163,6 @@ export class Intentions {
                 predicted.position.x === next.x && predicted.position.y === next.y) {
                 return true;
             }
-
-            // No confident prediction, but enemy is adjacent to the next tile and currently in a half position, so it might be moving onto the next tile
-            if (!predicted || predicted.confidence < 0.5) {
-                // For each possible current position of the enemy
-                for (const ex of xs) {
-                    for (const ey of ys) {
-                        // Check if the enemy is adjacent to the next tile (Manhattan distance of 1) and could potentially move onto it in the next step
-                        if (Math.abs(ex - next.x) + Math.abs(ey - next.y) === 1) {
-                            return true;
-                        }
-                    }
-                }
-            }
         }
         // No known agents are currently blocking the next step
         return false;
@@ -208,11 +195,8 @@ export class Intentions {
             // If a valid path is found, we can keep this intention
             if (this.currentIntention !== null) return; 
 
-            // Remove the unreachable desire from current desires
-            const desireTypeArray = this.desires.get(desire.type);
-            if (!desireTypeArray) continue;
-            desireTypeArray.splice(desireTypeArray.indexOf(desire), 1);
-            if (desireTypeArray.length === 0) this.desires.delete(desire.type);
+            // If no valid path is found, remove this desire from consideration and try the next one
+            this.removeDesireFromIntention(); 
 
         }
 
@@ -304,5 +288,20 @@ export class Intentions {
         }
         // Drop the current intention so that it will be reconsidered in the next deliberation cycle
         this.currentIntention = null;
+    }
+
+    /**
+     * Removes the current intention's desire from the desires list, used when an intention is found to be unreachable to avoid reconsidering it in the next cycle.
+      * @returns void, but updates the desires by removing the current intention's desire from the desires list.
+     */
+    removeDesireFromIntention(): void {
+        if (!this.currentIntention) return;
+
+        const desire = this.currentIntention.desire;
+        // Remove the unreachable desire from current desires
+        const desireTypeArray = this.desires.get(desire.type);
+        if (!desireTypeArray) return;
+        desireTypeArray.splice(desireTypeArray.indexOf(desire), 1);
+        if (desireTypeArray.length === 0) this.desires.delete(desire.type);
     }
 }

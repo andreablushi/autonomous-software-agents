@@ -37,6 +37,8 @@ export class AgentBeliefs {
      * @param sensedMe Latest info about the agent from the server.
      */
     updateMe(sensedMe: IOAgent): void {
+        // Ignore half position
+        if(!Number.isInteger(sensedMe.x) || !Number.isInteger(sensedMe.y)) return; 
         this.me = {
             id: sensedMe.id,
             name: sensedMe.name,
