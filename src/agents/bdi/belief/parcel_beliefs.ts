@@ -126,8 +126,19 @@ export class ParcelBeliefs {
     }
 
     /**
+     * Get the available parcel at the given position, if any.
+     * @param pos The position to check.
+     * @returns The parcel at the position, or undefined if none.
+     */
+    getParcelAt(pos: Position): Parcel | undefined {
+        return this.getAvailableParcels().find(
+            p => p.lastPosition?.x === pos.x && p.lastPosition?.y === pos.y
+        );
+    }
+
+    /**
      * Get all parcels currently believed to be carried by a specific agent.
-     * @param agentId 
+     * @param agentId
      * @returns An array of parcels currently believed to be carried by the specified agent.
      */
     getCarriedByAgent(agentId: string): Parcel[] {
