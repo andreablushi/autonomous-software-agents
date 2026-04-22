@@ -128,9 +128,15 @@ export class BDIAgent {
 
         // Get the next step from the intentions manager
         const move = this.intentions.getNextAction(currentPosition, this.beliefs);
+        if (move === 'wait') {
+            if (this.debug) console.log("[EXECUTE] Waiting for blocked tile to clear.");
+            return false;
+        }
+
         if (move === null) {
             if (this.debug) console.log("[EXECUTE] No safe move to execute.");
-            this.intentions.invalidatePath(this.beliefs);
+            const shouldWait = this.intentions.invalidatePath(this.beliefs);
+            if (shouldWait) return false;
             return this.intentions.getCurrentIntention() !== null;
         }
 
@@ -179,7 +185,8 @@ export class BDIAgent {
             this.intentions.shiftPath(this.beliefs);
         }
         else {
-            this.intentions.invalidatePath(this.beliefs);
+            const shouldWait = this.intentions.invalidatePath(this.beliefs);
+            if (shouldWait) return false;
         }
         // Return whether we still have an intention to execute after this step
         return this.intentions.getCurrentIntention() !== null;

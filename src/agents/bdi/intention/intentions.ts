@@ -26,6 +26,9 @@ function posToDirection(from: Position, to: Position): string {
 export class Intentions {
     private currentIntention: Intention | null = null;
     private intentionsQueue: IntentionQueue = [];
+    private waitBlockedTileKey: string | null = null;
+    private waitBlockedTileCounter = 0;
+    private waitingBecauseAgentAhead = false;
 
     /**
      * Called each deliberation cycle.
@@ -124,6 +127,34 @@ export class Intentions {
         return true;
     }
 
+    private resetBlockedTileWait(): void {
+        this.waitBlockedTileKey = null;
+        this.waitBlockedTileCounter = 0;
+        this.waitingBecauseAgentAhead = false;
+    }
+
+    private shouldKeepWaitingOnTile(pos: Position): boolean {
+        const key = `${pos.x},${pos.y}`;
+
+        if (this.waitBlockedTileKey !== key) {
+            this.waitBlockedTileKey = key;
+            this.waitBlockedTileCounter = Math.floor(Math.random() * 21) + 10;
+        }
+
+        if (this.waitBlockedTileCounter > 0) {
+            this.waitBlockedTileCounter -= 1;
+            return true;
+        }
+
+        this.resetBlockedTileWait();
+        return false;
+    }
+
+    private startBlockedTileWait(pos: Position): void {
+        this.waitBlockedTileKey = `${pos.x},${pos.y}`;
+        this.waitBlockedTileCounter = Math.floor(Math.random() * 21) + 10;
+    }
+
 
     /**
      * Returns true if the next step in the path is occupied by a known agent.
@@ -220,11 +251,13 @@ export class Intentions {
 
         // If no path is found, drop the current intention
         if (!path || path.length === 0) {
+            this.resetBlockedTileWait();
             this.currentIntention = null;
             return;
         }
 
         // Update the current intention's path
+        this.resetBlockedTileWait();
         this.currentIntention.path = path;
     }
 
@@ -232,7 +265,7 @@ export class Intentions {
      * Returns the next direction to move and advances the path.
      * @param from - The current position of the agent, used to compute the direction to the next step.
      * @param beliefs - The current beliefs of the agent, used to refresh the intention queue after shifting the path.
-     * @returns The next direction to move ('up', 'down', 'left', 'right') or null if no intention or path is available.
+     * @returns The next direction to move ('up', 'down', 'left', 'right'), 'wait' if execution should pause, or null if no intention or path is available.
      */
     getNextAction(from: { x: number; y: number }, beliefs: Beliefs): string | null {
         // If there is no current intention, we cannot return a next action
@@ -245,10 +278,20 @@ export class Intentions {
         // If it's a navigation desire, check there is a path
         if (this.currentIntention.path.length === 0) return null;
         // Ensure the path is still valid before trying to get the next action
-        if(this.isNextStepBlockedByAgent(beliefs)) {
-            beliefs.map.markBlocked(this.currentIntention.path[0]);
+        if (this.isNextStepBlockedByAgent(beliefs)) {
+            const nextTile = this.currentIntention.path[0];
+            const nextTileKey = `${nextTile.x},${nextTile.y}`;
+            if (!this.waitingBecauseAgentAhead || this.waitBlockedTileKey !== nextTileKey) {
+                this.startBlockedTileWait(nextTile);
+                this.waitingBecauseAgentAhead = true;
+            }
+            if (this.shouldKeepWaitingOnTile(nextTile)) {
+                return 'wait';
+            }
+            beliefs.map.markBlocked(nextTile);
             return null;
         }
+        this.waitingBecauseAgentAhead = false;
         // Get the next step in the path
         const nextStep = this.currentIntention.path[0];    
         // Compute the direction to the next step
@@ -263,6 +306,7 @@ export class Intentions {
      * @param beliefs The current beliefs of the agent, used to refresh the intention queue after shifting the path.
      */
     shiftPath(beliefs: Beliefs): void {
+        this.resetBlockedTileWait();
         if (this.currentIntention && this.currentIntention.path.length > 0) {
             this.currentIntention.path.shift();
         }
@@ -278,14 +322,19 @@ export class Intentions {
       * @param beliefs The current beliefs of the agent, used to mark the next step as temporarily blocked.
       * Failed immediate actions are removed from the in-memory queue to avoid repeating a penalizing action until sensing refreshes beliefs.
      */
-    invalidatePath(beliefs: Beliefs): void {
+    invalidatePath(beliefs: Beliefs): boolean {
         const failedIntention = this.currentIntention;
 
-        // Mark the next step as temporarily blocked to avoid repeated failed attempts
+        // Wait a random number of sensing cycles before giving up on a blocked next tile.
         if (failedIntention && failedIntention.path.length > 0) {
-            beliefs.map.markBlocked(failedIntention.path[0]);
+            const blockedTile = failedIntention.path[0];
+            if (this.shouldKeepWaitingOnTile(blockedTile)) {
+                return true;
+            }
+            beliefs.map.markBlocked(blockedTile);
         }
 
+        this.resetBlockedTileWait();
         this.currentIntention = null;
 
         // Failed immediate actions are removed from the current queue so we do not retry the same penalizing action
@@ -295,9 +344,10 @@ export class Intentions {
                 entry => !this.sameDesire(entry.desire, failedIntention.desire),
             );
             this.filterIntention(beliefs);
-            return;
+            return false;
         }
 
         this.update(beliefs, generateDesires(beliefs));
+        return false;
     }
 }
