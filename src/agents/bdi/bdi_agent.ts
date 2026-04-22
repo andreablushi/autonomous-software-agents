@@ -135,8 +135,6 @@ export class BDIAgent {
 
         if (move === null) {
             if (this.debug) console.log("[EXECUTE] No safe move to execute.");
-            const shouldWait = this.intentions.invalidatePath(this.beliefs);
-            if (shouldWait) return false;
             return this.intentions.getCurrentIntention() !== null;
         }
 
@@ -185,8 +183,7 @@ export class BDIAgent {
             this.intentions.shiftPath(this.beliefs);
         }
         else {
-            const shouldWait = this.intentions.invalidatePath(this.beliefs);
-            if (shouldWait) return false;
+            this.intentions.invalidatePath(this.beliefs);
         }
         // Return whether we still have an intention to execute after this step
         return this.intentions.getCurrentIntention() !== null;

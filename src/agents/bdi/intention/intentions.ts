@@ -26,9 +26,8 @@ function posToDirection(from: Position, to: Position): string {
 export class Intentions {
     private currentIntention: Intention | null = null;
     private intentionsQueue: IntentionQueue = [];
-    private waitBlockedTileKey: string | null = null;
-    private waitBlockedTileCounter = 0;
-    private waitingBecauseAgentAhead = false;
+    private waitingCounter: number = 0;
+    private waitingTile: Position | null = null;
 
     /**
      * Called each deliberation cycle.
@@ -127,32 +126,49 @@ export class Intentions {
         return true;
     }
 
+    /**
+     * Resets the blocked tile waiting state, clearing the waiting tile and counter.
+     */
     private resetBlockedTileWait(): void {
-        this.waitBlockedTileKey = null;
-        this.waitBlockedTileCounter = 0;
-        this.waitingBecauseAgentAhead = false;
+        this.waitingTile = null;
+        this.waitingCounter = 0;
     }
 
-    private shouldKeepWaitingOnTile(pos: Position): boolean {
-        const key = `${pos.x},${pos.y}`;
-
-        if (this.waitBlockedTileKey !== key) {
-            this.waitBlockedTileKey = key;
-            this.waitBlockedTileCounter = Math.floor(Math.random() * 21) + 10;
-        }
-
-        if (this.waitBlockedTileCounter > 0) {
-            this.waitBlockedTileCounter -= 1;
-            return true;
-        }
-
-        this.resetBlockedTileWait();
-        return false;
-    }
-
+    /**
+     * Starts waiting for a tile to be unblocked by setting the waiting tile and initializing a random counter.
+     * @param pos 
+     */
     private startBlockedTileWait(pos: Position): void {
-        this.waitBlockedTileKey = `${pos.x},${pos.y}`;
-        this.waitBlockedTileCounter = Math.floor(Math.random() * 21) + 10;
+        this.waitingTile = pos;
+        // Start a random counter between 1 and 3
+        this.waitingCounter = Math.floor(Math.random() * 3) + 1;
+    }
+
+    /**
+     * Applies deferred blocking to a tile: starts a random counter on first call for that tile,
+     * decrements on subsequent calls, and only marks the tile blocked once the counter reaches zero.
+     * @param beliefs The current beliefs of the agent, used to mark the tile as blocked when the counter reaches zero.
+     * @param tile The position of the tile to potentially mark as blocked.
+     */
+    private tryMarkBlocked(tile: Position, beliefs: Beliefs): void {
+        // Check if we are already waiting for this tile to be unblocked
+        const waitingForSameTile =
+            this.waitingTile &&
+            this.waitingTile.x === tile.x &&
+            this.waitingTile.y === tile.y;
+        // If not, start waiting for this new tile to be unblocked
+        if (!waitingForSameTile) {
+            this.startBlockedTileWait(tile);
+        // If we are already waiting for this tile, decrement the counter and mark as blocked if it reaches zero
+        } else {
+            this.waitingCounter--;
+            if (this.waitingCounter <= 0) {
+                beliefs.map.markBlocked(tile);
+                // After marking the tile as blocked, we should drop the current intention and replan
+                this.update(beliefs, generateDesires(beliefs));
+                this.resetBlockedTileWait();
+            }
+        }
     }
 
 
@@ -192,6 +208,14 @@ export class Intentions {
                 predicted.position.x === next.x && predicted.position.y === next.y) {
                 return true;
             }
+
+            // Mark the next tile as blocked if we have low-confidence and adjacent observations of an enemy, and if is not stationary
+            if (predicted && predicted.confidence < 0.5 &&
+                ((xs.includes(predicted.position.x) && ys.includes(predicted.position.y)) ||
+                (xs.includes(pos.x) && ys.includes(pos.y))) &&
+                predicted.position.x !== pos.x && predicted.position.y !== pos.y) {
+                return false;
+            } 
         }
         // No known agents are currently blocking the next step
         return false;
@@ -251,13 +275,11 @@ export class Intentions {
 
         // If no path is found, drop the current intention
         if (!path || path.length === 0) {
-            this.resetBlockedTileWait();
             this.currentIntention = null;
             return;
         }
 
         // Update the current intention's path
-        this.resetBlockedTileWait();
         this.currentIntention.path = path;
     }
 
@@ -279,19 +301,9 @@ export class Intentions {
         if (this.currentIntention.path.length === 0) return null;
         // Ensure the path is still valid before trying to get the next action
         if (this.isNextStepBlockedByAgent(beliefs)) {
-            const nextTile = this.currentIntention.path[0];
-            const nextTileKey = `${nextTile.x},${nextTile.y}`;
-            if (!this.waitingBecauseAgentAhead || this.waitBlockedTileKey !== nextTileKey) {
-                this.startBlockedTileWait(nextTile);
-                this.waitingBecauseAgentAhead = true;
-            }
-            if (this.shouldKeepWaitingOnTile(nextTile)) {
-                return 'wait';
-            }
-            beliefs.map.markBlocked(nextTile);
-            return null;
+            this.tryMarkBlocked(this.currentIntention.path[0], beliefs);
+            return 'wait';
         }
-        this.waitingBecauseAgentAhead = false;
         // Get the next step in the path
         const nextStep = this.currentIntention.path[0];    
         // Compute the direction to the next step
@@ -322,19 +334,13 @@ export class Intentions {
       * @param beliefs The current beliefs of the agent, used to mark the next step as temporarily blocked.
       * Failed immediate actions are removed from the in-memory queue to avoid repeating a penalizing action until sensing refreshes beliefs.
      */
-    invalidatePath(beliefs: Beliefs): boolean {
+    invalidatePath(beliefs: Beliefs): void {
         const failedIntention = this.currentIntention;
 
-        // Wait a random number of sensing cycles before giving up on a blocked next tile.
         if (failedIntention && failedIntention.path.length > 0) {
-            const blockedTile = failedIntention.path[0];
-            if (this.shouldKeepWaitingOnTile(blockedTile)) {
-                return true;
-            }
-            beliefs.map.markBlocked(blockedTile);
+            this.tryMarkBlocked(failedIntention.path[0], beliefs);
         }
 
-        this.resetBlockedTileWait();
         this.currentIntention = null;
 
         // Failed immediate actions are removed from the current queue so we do not retry the same penalizing action
@@ -344,10 +350,10 @@ export class Intentions {
                 entry => !this.sameDesire(entry.desire, failedIntention.desire),
             );
             this.filterIntention(beliefs);
-            return false;
+            return;
         }
 
         this.update(beliefs, generateDesires(beliefs));
-        return false;
+        return;
     }
 }
