@@ -2,6 +2,7 @@ import { IOConfig, IOTile, IOAgent, IOSensing } from "../../models/djs.js";
 import { Beliefs } from "./belief/beliefs.js";
 import { generateDesires } from "./desire/desire_generator.js";
 import { Intentions } from "./intention/intentions.js";
+import { Executor } from "./execution/executor.js";
 
 /**
  * BDI Agent Implementation
@@ -13,7 +14,7 @@ export class BDIAgent {
     private debug: boolean;
     private beliefs: Beliefs;
     private intentions: Intentions;
-    private moving = false;
+    private executor: Executor;
 
     /**
      * @param socket - The socket connection to the Deliveroo.js server.
@@ -24,6 +25,7 @@ export class BDIAgent {
         this.debug = debug;
         this.beliefs = new Beliefs();
         this.intentions = new Intentions();
+        this.executor = new Executor(socket, this.beliefs, this.intentions, debug);
 
         // Initialize the agent info in the beliefs once the connection is established
         this.socket.once('you', (info : IOAgent) => {
@@ -93,7 +95,7 @@ export class BDIAgent {
                 console.log("  - Parcels:", this.beliefs.parcels.getCurrentParcels().length, "parcels");
                 console.log("  - Crates:", this.beliefs.map.getCurrentCrates().length, "crates");
             }
-            if (!this.moving) this.deliberate();
+            this.deliberate();
         });
     }
 
@@ -108,48 +110,9 @@ export class BDIAgent {
 
         // Update intentions based on the new desires and current beliefs
         this.intentions.update(this.beliefs, desires);
-        if (this.debug) console.log("[DELIBERATE] Current intention:", this.intentions.getCurrentIntention());    
-
-        // Execute the next step of the current intention
-        this.execute();
-    }
-
-    /**
-     * Execute one step of the current intention by emitting a move to the socket.
-     */
-    async execute() {
-        // Get current position from beliefs to compute the next step direction
-        const me = this.beliefs.agents.getCurrentMe();
-        if (!me?.lastPosition) return;
-
-        // Get the next step from the intentions manager
-        const move = this.intentions.getNextAction(me.lastPosition);
-
-        // Handle action desires (pickup/putdown) immediately without pathfinding
-        if (move === 'pickup') {
-            this.moving = true;
-            await this.socket.emitPickup();
-            this.moving = false;
-            if (this.debug) console.log("[EXECUTE] Picking up parcel.");
-            return;
-        }
-        else if(move === 'putdown') {
-            this.moving = true;
-            await this.socket.emitPutdown();
-            this.moving = false;
-            this.beliefs.parcels.cleanDeliveredParcels(this.beliefs.parcels.getCarriedByAgent(me.id));
-            if (this.debug) console.log("[EXECUTE] Delivering parcel.");
-            return;
-        }
-        else if (move === null) {
-            if (this.debug) console.log("[EXECUTE] No move to execute.");
-            return;
-        }
-        else{
-            this.moving = true;
-            await this.socket.emitMove(move);
-            this.moving = false;
-            if (this.debug) console.log("[EXECUTE] Moving to next step:", move);
-        }
+        if (this.debug) console.log("[DELIBERATE] Current intention:", this.intentions.getCurrentIntention());  
+        
+        // Start executing the current intention if not already doing so
+        this.executor.start();
     }
 }

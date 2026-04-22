@@ -17,7 +17,8 @@ export class MapBeliefs {
     private crates = new Tracker<Crate>();                           // Latest-only store; eviction is handled by MapBeliefs.evict()
     private spawnTilesSensingTimes = new Map<string, number>();      // Keep track of when spawn tiles were last sensed, keyed as "x,y"
     private spawnTilesClusterWeights = new Map<string, number>();    // Keep track of how many spawn tiles are in the cluster of each spawn tile, keyed as "x,y"
-    
+    private temporaryBlocked = new Map<string, number>();             // Temporary blockers for pathfinding, e.g. tiles that are currently occupied by other agents or crates but may become free soon
+  
     /**
      * Initialize map beliefs from the given map info.
      * @param width Width of the map in tiles.
@@ -67,10 +68,16 @@ export class MapBeliefs {
      * @returns True if the position is walkable, false otherwise.
      */
     isWalkable(from: Position, to: Position): boolean {
+        // Only adjacent tiles can be walked to, to avoid inconsistencies in a sensing
+        if (manhattanDistance(from, to) !== 1) return false;
+
         const tile = this.getTileAt(to);
 
         // If there's no tile (out of bounds) or it's a wall, it's not walkable
         if (tile === null || tile.type === TILE_TYPE.WALL) return false;
+
+        // If it's temporary blocked (e.g. occupied by another agent or crate), it's not walkable
+        if (this.isBlocked(to)) return false;
 
         // Conveyors block entry only from the direction that opposes their push.
         const dx = to.x - from.x;
@@ -82,6 +89,9 @@ export class MapBeliefs {
             case TILE_TYPE.CONVEYOR_DOWN:  return dy !== 1;   // blocked if moving up    (dy+1 against down)
         }
 
+
+
+        // Otherwise, it's walkable
         return true;
     }
     
@@ -121,6 +131,8 @@ export class MapBeliefs {
      * Compute and cache a distance-weighted cluster weight for every spawn tile.
      * Weight = Σ (observationDistance - dist(tile, neighbor) + 1) for each neighbor within range.
      * Must be called once after observationDistance is known from the config event.
+     * @param observationDistance The maximum distance at which the agent can sense tiles, used to determine which spawn tiles are in the same cluster.
+     * @returns void
      */
     computeClusterWeights(observationDistance: number): void {
         for (const tile of this.spawnTiles) {
@@ -172,6 +184,28 @@ export class MapBeliefs {
      */
     getCurrentCrates(): Crate[] {
         return this.crates.getCurrentAll();
+    }
+
+    /**
+     * Mark a tile as temporarily blocked for pathfinding purposes
+     * @param pos The position to mark as blocked
+     * @param ttl How long to keep the tile blocked in milliseconds (default 1000ms)
+     */
+    markBlocked(pos: Position, ttl = 1_000): void {
+        this.temporaryBlocked.set(`${pos.x},${pos.y}`, Date.now() + ttl);
+    }
+
+    /**
+     * Check if a tile is currently marked as temporarily blocked     
+     * @param pos The position to check
+     * @returns True if the tile is currently blocked, false otherwise
+     */
+    isBlocked(pos: Position): boolean {
+        const key = `${pos.x},${pos.y}`;
+        const exp = this.temporaryBlocked.get(key);
+        if (exp === undefined) return false;
+        if (Date.now() >= exp) { this.temporaryBlocked.delete(key); return false; }
+        return true;
     }
 
     /**

@@ -91,9 +91,14 @@ export class ParcelBeliefs {
     updateParcels(sensedParcels: IOParcel[], sensedPositions: Position[]): void {
         this.updateSensedParcels(sensedParcels);
 
+        // Invalidate lastPosition for parcels not currently visible but whose last known position is in view.
+        // This must run every sensing cycle and must not be throttled by reward decay timing.
+        this.parcels.invalidateAtSensedPositions(sensedParcels, sensedPositions);
+
         // Guard clause to prevent decaying rewards too frequently (only decay once per decay interval)
         const now = Date.now();
         const decayInterval = this.parcelSettings?.reward_decay_interval || 0;
+        if (decayInterval <= 0) return;
         if (now - this.lastScoreUpdate < decayInterval) return; 
         
         // Update the last score update timestamp to the current time
@@ -102,8 +107,6 @@ export class ParcelBeliefs {
         // Update beliefs for parcels that are not currently sensed
         this.applyRewardDecay(sensedParcels, decayInterval, now);
 
-        // Invalidate lastPosition for parcels not currently visible but whose last known position is in view
-        this.parcels.invalidateAtSensedPositions(sensedParcels, sensedPositions);
     }
 
     /**
@@ -123,12 +126,39 @@ export class ParcelBeliefs {
     }
 
     /**
+     * Get the available parcel at the given position, if any.
+     * @param pos The position to check.
+     * @returns The parcel at the position, or undefined if none.
+     */
+    getParcelAt(pos: Position): Parcel | undefined {
+        return this.getAvailableParcels().find(
+            p => p.lastPosition?.x === pos.x && p.lastPosition?.y === pos.y
+        );
+    }
+
+    /**
      * Get all parcels currently believed to be carried by a specific agent.
-     * @param agentId 
+     * @param agentId
      * @returns An array of parcels currently believed to be carried by the specified agent.
      */
     getCarriedByAgent(agentId: string): Parcel[] {
         return this.parcels.getCurrentAll().filter(p => p.carriedBy === agentId);
+    }
+
+    /**
+     * Mark parcels as picked up based on the server's acknowledgment of a pickup action.
+     * @param parcel The parcel that was attempted to be picked up, used to update beliefs by marking it as carried by the agent and maintaining its last known position.
+     * @returns 
+     */
+    markPickup(parcel: Parcel): void {
+        if (!parcel.id) return;
+        if (!parcel.lastPosition) return;
+
+        this.parcels.updateValuePreservingTimestamp(parcel.id, {
+            ...parcel,
+            carriedBy: parcel.carriedBy,
+            lastPosition: { x: parcel.lastPosition.x, y: parcel.lastPosition.y },
+        });
     }
 
     /**
@@ -137,10 +167,9 @@ export class ParcelBeliefs {
      * @returns void
      */
     cleanDeliveredParcels(deliveredParcels: Parcel[]): void {
-        const deliveredParcelIds = deliveredParcels.map(p => p.id);
-        deliveredParcelIds.forEach(id => {
-            this.parcels.delete(id);
-            this.lastDecayApplied.delete(id);
-        });
-    }   
-}
+        for (const parcel of deliveredParcels) {
+            this.parcels.delete(parcel.id);
+            this.lastDecayApplied.delete(parcel.id);
+        }
+    }
+}   
