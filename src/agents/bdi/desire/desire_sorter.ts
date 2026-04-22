@@ -23,7 +23,6 @@ export function getPriorityForDesire(desire: DesireType): number {
     return 0;
 }
 
-
 /**
  * Build the ordered desire queue for all candidates generated this cycle.
  * Called by bdi_agent, handles the full priority ladder including action-tier desires.
@@ -67,6 +66,7 @@ export function getIntentionQueue(desires: GeneratedDesires, beliefs: Beliefs): 
     // Fallback to exploration desires
     const explores = (desires.get("EXPLORE") ?? []) as ExploreDesire[];
     const now = Date.now();
+    // Score each explore desire independently based on sensing age and distance
     for (const desire of explores) {
         queue.push({ desire, score: scoreExplore(
             desire,
@@ -76,6 +76,7 @@ export function getIntentionQueue(desires: GeneratedDesires, beliefs: Beliefs): 
         ) });
     }
 
+    // Sort the queue by priority tier first, then by score within the same tier
     return queue.sort((a, b) => getPriorityForDesire(b.desire) - getPriorityForDesire(a.desire) || b.score - a.score);
 }
 
@@ -88,6 +89,7 @@ function scoreReachDesire(desire: ReachParcelDesire, beliefs: Beliefs): number {
     const me = beliefs.agents.getCurrentMe();
     if (!me?.lastPosition) return 0;
 
+    // Find the parcel matching the desire's target position among available parcels
     const parcel = beliefs.parcels.getAvailableParcels().find(
         p => p.lastPosition &&
             p.lastPosition.x === desire.target.x &&
@@ -95,6 +97,7 @@ function scoreReachDesire(desire: ReachParcelDesire, beliefs: Beliefs): number {
     );
     if (!parcel) return 0;
 
+    // Calculate the Manhattan distance from the agent's current position to the parcel's position
     const distance = manhattanDistance(me.lastPosition, desire.target);
     return parcel.reward / (distance + 1);
 }
@@ -104,38 +107,17 @@ function scoreReachDesire(desire: ReachParcelDesire, beliefs: Beliefs): number {
  * Falls back to 0 when the agent position is unknown or nothing is being carried.
  * Basic heuristic — replace this function to improve goal selection in the future.
  */
-function scoreDeliverDesire(
-    desire: DeliverParcelDesire, 
-    beliefs: Beliefs
-): number {
+function scoreDeliverDesire(desire: DeliverParcelDesire, beliefs: Beliefs): number {
     const me = beliefs.agents.getCurrentMe();
     if (!me?.lastPosition) return 0;
 
+    // Calculate the total reward of all parcels currently being carried by the agent
     const carriedReward = beliefs.parcels.getCarriedByAgent(me.id).reduce((s, p) => s + p.reward, 0);
     if (carriedReward === 0) return 0;
 
+    // Calculate the Manhattan distance from the agent's current position to the delivery target position
     const distance = manhattanDistance(me.lastPosition, desire.target);
     return carriedReward / (distance + 1);
-}
-
-/**
- * Select the best ExploreDesire using cluster-weighted sensing-age scoring:
- *   score = clusterWeight * age / (distance + 1)
- * Candidates are pre-filtered to those outside observation range; falls back to all tiles if none qualify.
- */
-export function filterExplore(
-    explores: ExploreDesire[],
-    agentPos: { x: number; y: number } | null,
-    mapBeliefs: MapBeliefs
-): ExploreDesire {
-    // If we don't know our position, return the first explore desire
-    if (!agentPos) return explores[0];
-    
-    // Weight each explore desire and pick the one with the highest score
-    const now = Date.now();
-    return explores.reduce((best, desire) =>
-        scoreExplore(desire, agentPos, mapBeliefs, now) > scoreExplore(best, agentPos, mapBeliefs, now) ? desire : best,
-    );
 }
 
 /**
@@ -149,12 +131,7 @@ export function filterExplore(
  * @param now The current timestamp, used to calculate the age of the last sensing.
  * @returns A numeric score representing the desirability of exploring the target tile, where higher is better.
  */
-function scoreExplore(
-    desire: ExploreDesire,
-    agentPos: { x: number; y: number } | null,
-    mapBeliefs: MapBeliefs,
-    now: number
-): number {
+function scoreExplore(desire: ExploreDesire, agentPos: { x: number; y: number } | null, mapBeliefs: MapBeliefs, now: number): number {
     if (!agentPos) return 0; // If we don't know our position, we can't calculate a meaningful score, so return 0.
 
     // Get spawn tile distance and age since last sensing

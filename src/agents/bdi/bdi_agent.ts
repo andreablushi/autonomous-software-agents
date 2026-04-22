@@ -1,8 +1,8 @@
 import { IOConfig, IOTile, IOAgent, IOSensing } from "../../models/djs.js";
-import type { Position } from "../../models/position.js";
 import { Beliefs } from "./belief/beliefs.js";
 import { generateDesires } from "./desire/desire_generator.js";
 import { Intentions } from "./intention/intentions.js";
+import { Executor } from "./execution/executor.js";
 
 /**
  * BDI Agent Implementation
@@ -14,7 +14,7 @@ export class BDIAgent {
     private debug: boolean;
     private beliefs: Beliefs;
     private intentions: Intentions;
-    private executing = false;
+    private executor: Executor;
 
     /**
      * @param socket - The socket connection to the Deliveroo.js server.
@@ -25,6 +25,7 @@ export class BDIAgent {
         this.debug = debug;
         this.beliefs = new Beliefs();
         this.intentions = new Intentions();
+        this.executor = new Executor(socket, this.beliefs, this.intentions, debug);
 
         // Initialize the agent info in the beliefs once the connection is established
         this.socket.once('you', (info : IOAgent) => {
@@ -112,101 +113,6 @@ export class BDIAgent {
         if (this.debug) console.log("[DELIBERATE] Current intention:", this.intentions.getCurrentIntention());  
         
         // Start executing the current intention if not already doing so
-        if (!this.executing) {
-            this.executeLoop();
-        }
-    }
-
-    /**
-     * Execute one step of the current intention by emitting a move to the socket.
-     */
-    async execute(): Promise<boolean> {
-        // Get current position from beliefs to compute the next step direction
-        const me = this.beliefs.agents.getCurrentMe();
-        const currentPosition = me?.lastPosition;
-        if (!me || !currentPosition) return false;
-
-        // Get the next step from the intentions manager
-        const move = this.intentions.getNextAction(currentPosition, this.beliefs);
-        if (move === 'wait') {
-            if (this.debug) console.log("[EXECUTE] Waiting for blocked tile to clear.");
-            return false;
-        }
-
-        if (move === null) {
-            if (this.debug) console.log("[EXECUTE] No safe move to execute.");
-            return false;
-        }
-
-        let succeeded = false;
-
-        // Handle action desires (pickup/putdown) immediately without pathfinding
-        if (move === 'pickup') {
-            const pickupAck = await this.socket.emitPickup() as Array<{ id?: string; parcelId?: string }> | null;
-
-            // Consider the pickup successful if we received an acknowledgment from the server (even if it doesn't contain parcel info, as the server might not return it)
-            succeeded = pickupAck !== null;
-            if (this.debug) console.log("[EXECUTE] Picking up parcel.");
-            if (succeeded) {
-                // Retrieve the parcel at the current position
-                const parcel = this.beliefs.parcels.getAvailableParcels().find(
-                    parcel =>
-                        parcel.lastPosition?.x === currentPosition.x &&
-                        parcel.lastPosition?.y === currentPosition.y
-                );
-                // Update beliefs to mark the parcel as picked up
-                if (parcel) this.beliefs.parcels.markPickup(parcel);
-            }
-        }
-        else if (move === 'putdown') {
-            const putDown = await this.socket.emitPutdown() as Array<{ id: string }>;
-            if (this.debug) console.log("[EXECUTE] Put down parcel.");
-            succeeded = putDown.length > 0;
-            if (succeeded) {
-                this.beliefs.parcels.cleanDeliveredParcels(
-                    this.beliefs.parcels.getCarriedByAgent(me.id)
-                );
-            }
-        }
-        // For movement desires, emit the move and update beliefs based on the result
-        else {
-            const result = await this.socket.emitMove(move) as Position | false;
-            if (this.debug) console.log("[EXECUTE] Moving to next step:", move);
-            succeeded = result !== false;
-            if (result !== false) {
-                this.beliefs.agents.updateMyPosition(result);
-            }
-        }
-
-        // Update intentions based on whether the action succeeded or failed
-        if (succeeded) {
-            this.intentions.shiftPath(this.beliefs);
-        }
-        else {
-            this.intentions.invalidatePath(this.beliefs);
-        }
-        // Return whether we still have an intention to execute after this step
-        return this.intentions.getCurrentIntention() !== null;
-    }
-
-    /**
-     * Execute loop continuously executes steps of the current intention until there are no more steps to execute.
-     */
-    private async executeLoop(): Promise<void> {
-        // Prevent multiple concurrent execution loops
-        if (this.executing) return;
-        this.executing = true;
-        try {
-            while (this.executing) {
-                const shouldContinue = await this.execute();
-                if (!shouldContinue) await new Promise(r => setTimeout(r, 200));
-            }
-        }
-        catch (err) {
-            if (this.debug) console.error("[EXECUTE] Execution error:", err);
-        }
-        finally {
-            this.executing = false;
-        }
+        this.executor.start();
     }
 }

@@ -60,7 +60,8 @@ npm install
 | `npm build` | Compile TypeScript to JavaScript (output in `dist/`). |
 | `npm start` | Single agent, production mode. |
 | `npm run dev` | Single agent, debug logging enabled. |
-| `npm run dev:competitive` | Multiple single agents, in order to debug competitive behavior. In order to run multiple agents, set `TOKEN_1`, `TOKEN_2`, … in your `.env` (one per agent) |
+| `npm run competitive` | Multiple agents, production mode. Uses `TOKEN_1`, `TOKEN_2`, ... from `.env` (one token per agent). |
+| `npm run dev:competitive` | Multiple agents, development mode with debug logging enabled. Uses `TOKEN_1`, `TOKEN_2`, ... from `.env`. |
 
 
 ## Repository Structure

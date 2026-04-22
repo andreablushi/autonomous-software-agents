@@ -51,18 +51,6 @@ function generatePickupDesire(beliefs: Beliefs): PickupParcelDesire | null {
     if (!me?.lastPosition) return null;
     const ax = me.lastPosition.x;
     const ay = me.lastPosition.y;
-    
-    /*
-    #TODO: currently, the limit is set on the server, but no checks are done for it.
-    An agent can carry as many parcels as he wants
-
-    // Check if we can carry more parcels
-    const carryCapacity = beliefs.agents.getCarryCapacity();
-    if (carryCapacity !== null) {
-        const currentlyCarried = beliefs.parcels.getCarriedByAgent(me.id).length;
-        if (currentlyCarried >= carryCapacity) return null;
-    }
-    */
 
     // Check if any available parcel is at the agent's current position
     const onParcel = beliefs.parcels.getAvailableParcels().some(
@@ -101,18 +89,7 @@ function generatePutdownDesire(beliefs: Beliefs): PutdownParcelDesire | null {
  * @returns A ReachParcelDesire, or null if no parcels with known positions are available
  */
 function generateReachParcelDesires(beliefs: Beliefs): ReachParcelDesire[] {
-    /*
-    #TODO: currently, on the server, there is no limit to how many parcels an agent can carry.
-
-    // Check if we can carry more parcels before generating reach desires
-    const me = beliefs.agents.getCurrentMe();
-    if (!me) return [];
-    const carryCapacity = beliefs.agents.getCarryCapacity();
-    if (carryCapacity !== null) {
-        const currentlyCarried = beliefs.parcels.getCarriedByAgent(me.id).length;
-        if (currentlyCarried >= carryCapacity) return [];
-    }
-    */
+    // For each available parcel with a known position, generate a desire to reach its last known location
     return beliefs.parcels.getAvailableParcels()
         .filter(parcel => parcel.lastPosition !== null)
         .map(parcel => ({
@@ -145,6 +122,7 @@ function generateDeliverDesires(beliefs: Beliefs): DeliverParcelDesire[] {
  * @returns An array of ExploreDesires targeting each spawn tile, or an empty array if no spawn tiles are known
  */
 function generateExploreDesires(beliefs: Beliefs): ExploreDesire[] {
+    // For each spawn tile, generate an explore desire targeting that tile
     return beliefs.map.getSpawnTiles().map(tile => ({
         type: "EXPLORE" as const,
         target: { x: tile.x, y: tile.y },

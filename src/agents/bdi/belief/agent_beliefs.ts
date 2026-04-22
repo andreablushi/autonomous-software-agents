@@ -18,6 +18,7 @@ export class AgentBeliefs {
 
     private readonly FRACTION_CEIL_THRESHOLD = 0.6;
     private readonly FRACTION_FLOOR_THRESHOLD = 0.4;
+    private readonly POSITION_STALE_THRESHOLD_MS = 2_000; // Discard agent positions not refreshed within this window to avoid blocking on ghost agents
 
     // Memory management - EvictInterval prevents the agent from evicting stale beliefs too frequently,
     private lastEvict = 0;                          // Timestamp of the last eviction of stale beliefs
@@ -88,6 +89,7 @@ export class AgentBeliefs {
 
         // Invalidate lastPosition for enemies not currently visible but whose last known position is in view
         this.enemies.invalidateAtSensedPositions(sensedAgents, sensedPositions);
+        this.friends.invalidateAtSensedPositions(sensedAgents, sensedPositions);
 
         // Evict stale beliefs that haven't been updated recently to prevent memory bloat. This is done after processing the current observations to ensure we don't evict beliefs that were just updated.
         this.evict();
@@ -126,6 +128,58 @@ export class AgentBeliefs {
     }
 
     /**
+     * Returns true when the next tile is currently occupied by an observed enemy
+     * or when a confident prediction indicates an enemy will step into it.
+     * @param next The next tile of our current path
+     * @param isWalkable Optional callback used to filter impossible predictions
+     */
+    isNextBlockedByAgents(next: Position, isWalkable?: (from: Position, to: Position) => boolean): boolean {
+        // Only consider agents whose last known position was observed recently — stale positions
+        // belong to agents that left our sensing range and may no longer be at that tile.
+        const now = Date.now();
+        const enemies = this.getCurrentEnemies().filter(e => {
+            const ts = this.enemies.getLastTimestamp(e.id);
+            return ts !== undefined && (now - ts) <= this.POSITION_STALE_THRESHOLD_MS;
+        });
+        const friends = this.getCurrentFriends().filter(f => {
+            const ts = this.friends.getLastTimestamp(f.id);
+            return ts !== undefined && (now - ts) <= this.POSITION_STALE_THRESHOLD_MS;
+        });
+        const agents = [...enemies, ...friends];
+
+        // Check if any currently observed enemy is on the next tile, considering half positions as well
+        for (const agent of agents) {
+            const pos = agent.lastPosition;
+            if (!pos) continue;
+
+            // Retrieve the last known position of the agent and if it's not an integer coordinate, it means the agent is in between two tiles
+            const xs = Number.isInteger(pos.x) ? [pos.x] : [Math.floor(pos.x), Math.ceil(pos.x)];
+            const ys = Number.isInteger(pos.y) ? [pos.y] : [Math.floor(pos.y), Math.ceil(pos.y)];
+
+            // If the next tile is one of the tiles corresponding to the agent's last known position (including half positions), consider it blocked
+            if (xs.includes(next.x) && ys.includes(next.y)) {
+                return true;
+            }
+
+            // Retrieve a prediction for the agent's next position based on its movement history
+            const predicted = this.predictAgentNextPosition(agent, isWalkable);
+
+            // If the predicted next position of the enemy has a confidence of 0.5 or higher and matches the next tile, consider it blocked
+            if (
+                predicted &&
+                predicted.confidence >= 0.5 &&
+                predicted.position.x === next.x &&
+                predicted.position.y === next.y
+            ) {
+                return true;
+            }
+        }
+
+        // Otherwise, consider the next tile unblocked by enemies
+        return false;
+    }
+
+    /**
      * Get the confidence level of the belief about a specific enemy agent
      * @param id Enemy agent ID
      * @returns Confidence score between 0 and 1
@@ -139,13 +193,12 @@ export class AgentBeliefs {
      * @param id Enemy agent ID
      * @returns Direction prediction with confidence score, or null if insufficient history
      */
-    //#TODO Majority vote and not timestamp aware
-    predictEnemyNextPosition(id: string, isWalkable?: (from: Position, to: Position) => boolean): PositionPrediction | null {
-        // If I have a tracking for this enemy, use its history to predict
-        if(!this.enemies.getCurrent(id)?.lastPosition) return null;
+    predictAgentNextPosition(agent: Agent, isWalkable?: (from: Position, to: Position) => boolean): PositionPrediction | null {
+        // If I don't have a last known position for this enemy, I can't make a prediction about its movement direction, so I return null
+        if(!agent.lastPosition) return null;
 
         // If the enemy is in an half position (not fully in a tile), we can predict that it's moving in the direction of the half position
-        const lastPos = this.enemies.getCurrent(id)!.lastPosition!;
+        const lastPos = agent.lastPosition!;
         if (!Number.isInteger(lastPos.x) || !Number.isInteger(lastPos.y)) {
             const xIsFractional = !Number.isInteger(lastPos.x);
             const yIsFractional = !Number.isInteger(lastPos.y);
@@ -170,7 +223,7 @@ export class AgentBeliefs {
         }
 
         // Get the history of observed positions for the specified enemy agent
-        const history = this.enemiesMemory.getHistory(id);
+        const history = this.enemiesMemory.getHistory(agent.id);
         if (history.length < 5) return null;
 
         // Retrieve positions from the history of observations
